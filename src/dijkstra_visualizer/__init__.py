@@ -6,7 +6,7 @@ def main() -> int:
 
     from dijkstra_visualizer.ui.main_window import MainWindow
 
-    QLocale.setDefault(QLocale(QLocale.Language.Spanish, QLocale.Territory.Mexico))
+    QLocale.setDefault(QLocale("es_MX"))
     app = QApplication(sys.argv)
     translator = QTranslator(app)
     translations = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
