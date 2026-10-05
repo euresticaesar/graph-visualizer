@@ -1,19 +1,20 @@
 # Visualizador de Dijkstra
 
-Aplicación de escritorio para editar grafos y revisar Dijkstra paso a paso.
-Usa Python 3.12+, uv, PySide6 y NetworkX. Usa pytest para las pruebas y Ruff para
-revisar el código.
+Aplicación de escritorio para editar grafos y explorar el algoritmo de Dijkstra
+paso a paso. Está desarrollada con Python 3.12+, uv, PySide6 y NetworkX, y utiliza
+pytest para las pruebas y Ruff para revisar el código.
 
 ## Instalación
 
-Instala uv. Abre una terminal en la carpeta del proyecto. Ejecuta:
+Con uv instalado, abre una terminal en la carpeta del proyecto y ejecuta:
 
 ```sh
 uv sync
 uv run dijkstra-visualizer
 ```
 
-Se requiere un escritorio gráfico. Para iniciar desde otra carpeta, usa:
+La aplicación necesita un escritorio gráfico. Si quieres iniciarla desde otra
+carpeta, puedes indicar la ruta del proyecto:
 
 ```sh
 uv run --project /ruta/al/dijkstra-visualizer dijkstra-visualizer
@@ -21,20 +22,20 @@ uv run --project /ruta/al/dijkstra-visualizer dijkstra-visualizer
 
 ## Uso
 
-1. Abre **Editar grafo**. Agrega nodos o selecciona un nodo para cambiar su ID.
-2. Selecciona dos nodos y un peso. Pulsa **Guardar conexión**.
-3. Arrastra los nodos para cambiar sus posiciones. Los cambios se guardan al soltar.
-4. Abre **Recorrido**. Selecciona el inicio y el destino. Pulsa **Iniciar Dijkstra**.
-5. Usa **Anterior** y **Siguiente** para revisar los pasos.
-6. Pulsa **Volver a editar** para modificar el grafo.
+1. En **Editar grafo**, agrega nodos o selecciona uno existente para cambiar su ID.
+2. Para crear una conexión, selecciona dos nodos, asigna un peso y pulsa **Guardar conexión**.
+3. Arrastra los nodos para acomodarlos; sus posiciones se guardan al soltar el mouse.
+4. En **Recorrido**, elige el inicio y el destino, y pulsa **Iniciar Dijkstra**.
+5. Revisa los pasos con **Anterior** y **Siguiente**.
+6. Cuando quieras modificar el grafo, pulsa **Volver a editar**.
 
-Los ID deben ser enteros desde 0. No se admiten ID repetidos, negativos ni decimales.
-La aplicación no fija un ID máximo. Los pesos deben ser positivos y finitos.
-Usa un punto para los decimales: `2.5`.
+Los ID pueden ser enteros desde 0, sin un máximo definido por la aplicación.
+No se permiten valores repetidos, negativos ni decimales. Los pesos, en cambio,
+admiten decimales, pero deben ser positivos y finitos. Usa un punto, como en `2.5`.
 
-Eliminar un nodo también elimina sus conexiones. Debe quedar al menos un nodo.
-La edición se guarda de forma automática. Deshacer y rehacer también actualizan
-los archivos. El historial conserva hasta 100 acciones por sesión.
+Al eliminar un nodo también se borran sus conexiones, aunque el grafo debe
+conservar al menos un nodo. Los cambios se guardan automáticamente, incluso al
+deshacer o rehacer. El historial conserva hasta 100 acciones durante la sesión.
 
 | Control | Acción |
 | --- | --- |
@@ -47,45 +48,46 @@ los archivos. El historial conserva hasta 100 acciones por sesión.
 
 ## Algoritmo
 
-El proyecto implementa Dijkstra. NetworkX almacena el grafo; no calcula las rutas
-de la aplicación.
+Dijkstra está implementado en el propio proyecto. NetworkX se encarga de almacenar
+el grafo, mientras que el cálculo de las rutas sigue estos pasos:
 
 1. Asigna distancia 0 al inicio e infinito a los demás nodos.
-2. Selecciona el nodo no visitado con la menor distancia. Resuelve empates por ID.
-3. Marca el nodo como visitado. Si es el destino, termina.
+2. Selecciona el nodo no visitado con menor distancia; si hay empate, elige el ID menor.
+3. Marca ese nodo como visitado y termina si es el destino.
 4. Actualiza las distancias y los predecesores de sus vecinos no visitados.
 5. Repite hasta visitar el destino o agotar los nodos alcanzables.
 
-Cada paso se guarda como un estado inmutable. Avanzar o retroceder no recalcula
-el recorrido. La ruta final se obtiene de los predecesores. Si no hay ruta, la
-interfaz lo indica.
+Cada paso se guarda como un estado inmutable, por lo que puedes avanzar o
+retroceder sin recalcular el recorrido. La ruta final se reconstruye a partir de
+los predecesores. Si el destino no es alcanzable, la interfaz lo indica.
 
-Cada etiqueta muestra `[distancia, predecesor]`. `∞` indica distancia desconocida;
-`null` indica ausencia de predecesor. Gris significa sin alcanzar; amarillo,
-tentativo; verde, visitado. El nodo actual es verde oscuro. El destino tiene borde
-rojo. La ruta final se marca en turquesa.
+Las etiquetas muestran `[distancia, predecesor]`, con `∞` para una distancia aún
+desconocida y `null` cuando no hay predecesor. Los nodos sin alcanzar son grises,
+los tentativos amarillos y los visitados verdes. El nodo actual se distingue en
+verde oscuro, el destino tiene borde rojo y la ruta final se marca en turquesa.
 
 ## Datos
 
 | Archivo | Contenido |
 | --- | --- |
-| `data/nodes.csv` | Nodos. Encabezado: `id`. Un ID por fila. |
-| `data/edges.csv` | Conexiones. Encabezado: `source,target,weight`. Ejemplo: `0,1,2.5`. |
-| `data/layout.json` | Posiciones. Ejemplo: `{"0": {"x": 220, "y": 160}}`. |
+| `data/nodes.csv` | Nodos con el encabezado `id` y un ID por fila. |
+| `data/edges.csv` | Conexiones con el encabezado `source,target,weight`; por ejemplo, `0,1,2.5`. |
+| `data/layout.json` | Posiciones de los nodos; por ejemplo, `{"0": {"x": 220, "y": 160}}`. |
 
-El grafo no es dirigido. Registra cada conexión una sola vez. No conectes un nodo
-consigo mismo. Las posiciones faltantes se generan de forma automática.
-Los archivos no guardan estados de Dijkstra ni selecciones de inicio y destino.
-Cierra la aplicación antes de editar los archivos de forma manual.
+Como el grafo no es dirigido, cada conexión se registra una sola vez. No se
+permiten conexiones de un nodo consigo mismo. Si faltan posiciones, la aplicación
+las genera automáticamente. Estos archivos no guardan los estados de Dijkstra
+ni las selecciones de inicio y destino. Para editarlos a mano, cierra primero
+la aplicación.
 
 ## Exportaciones
 
-Inicia Dijkstra. Usa los botones debajo del grafo para exportar el paso actual,
-los pasos separados, una imagen conjunta o la ruta final.
+Después de iniciar Dijkstra, los botones debajo del grafo permiten exportar el
+paso actual, los pasos por separado, una imagen conjunta o la ruta final.
 
-Cada exportación crea una carpeta con fecha y hora dentro de `output/`.
-Las imágenes incluyen el grafo y los datos del paso. Al terminar, aparece un aviso
-con la ruta. Pulsa **Abrir carpeta** para ver los archivos. Git ignora `output/`.
+Las imágenes incluyen el grafo y los datos del paso, y se guardan en una carpeta
+con fecha y hora dentro de `output/`. Al terminar, aparece un aviso con la ruta;
+puedes pulsar **Abrir carpeta** para ver los archivos. Esta carpeta se excluye de Git.
 
 ## Estructura
 
@@ -109,5 +111,5 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-Para aplicar el formato, ejecuta `uv run ruff format .`.
-Las pruebas de interacción usan archivos temporales. No modifican tu grafo.
+Si necesitas aplicar el formato, ejecuta `uv run ruff format .`. Las pruebas de
+interacción usan archivos temporales, por lo que no modifican tu grafo.
