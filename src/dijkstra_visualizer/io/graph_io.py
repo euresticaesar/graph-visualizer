@@ -5,6 +5,8 @@ from pathlib import Path
 import networkx as nx
 
 from dijkstra_visualizer.core.graph import validate_graph
+from dijkstra_visualizer.io.files import atomic_write_files
+from dijkstra_visualizer.io.layout_io import PositionMap, serialize_layout
 
 
 def _rows(path: Path, columns: list[str]) -> list[dict[str, str]]:
@@ -58,3 +60,20 @@ def load_graph(nodes_path: Path, edges_path: Path) -> nx.Graph:
 
     validate_graph(graph)
     return graph
+
+
+def save_graph_data(data_dir: Path, graph: nx.Graph, positions: PositionMap) -> None:
+    validate_graph(graph)
+    if set(positions) != set(graph):
+        raise ValueError("Cada nodo debe tener una posición para guardar el grafo.")
+    nodes = "id\n" + "".join(f"{node}\n" for node in sorted(graph))
+    edges = "source,target,weight\n"
+    for source, target in sorted({tuple(sorted(pair)) for pair in graph.edges}):
+        edges += f"{source},{target},{graph[source][target]['weight']:.17g}\n"
+    atomic_write_files(
+        {
+            data_dir / "nodes.csv": nodes,
+            data_dir / "edges.csv": edges,
+            data_dir / "layout.json": serialize_layout(positions),
+        }
+    )

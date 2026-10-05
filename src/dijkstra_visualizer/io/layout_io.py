@@ -1,10 +1,10 @@
 import json
 import math
-import os
-import tempfile
 from pathlib import Path
 
 import networkx as nx
+
+from dijkstra_visualizer.io.files import atomic_write_files
 
 PositionMap = dict[int, tuple[float, float]]
 
@@ -50,19 +50,10 @@ def load_layout(path: Path, graph: nx.Graph) -> PositionMap:
     return positions
 
 
-def save_layout(path: Path, positions: PositionMap) -> None:
+def serialize_layout(positions: PositionMap) -> str:
     data = {str(node): {"x": x, "y": y} for node, (x, y) in sorted(positions.items())}
-    content = json.dumps(data, indent=2, allow_nan=False) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Replace atomically so an interrupted save cannot truncate the previous layout.
-    temporary: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=path.parent, delete=False
-        ) as stream:
-            temporary = stream.name
-            stream.write(content)
-        os.replace(temporary, path)
-    finally:
-        if temporary and Path(temporary).exists():
-            Path(temporary).unlink()
+    return json.dumps(data, indent=2, allow_nan=False) + "\n"
+
+
+def save_layout(path: Path, positions: PositionMap) -> None:
+    atomic_write_files({path: serialize_layout(positions)})
