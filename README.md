@@ -29,20 +29,42 @@ a standalone packaged installer is not provided.
 
 ## Use
 
-1. In **Edit mode**, drag nodes to arrange the graph. Edges and weights follow
-   immediately; coordinates are saved after releasing the mouse.
-2. Choose a **Start node** and **Target node**, then click **Initialize Dijkstra**.
-3. Use **Next** and **Previous** to navigate the stored phases. Nodes are locked
-   during Algorithm mode. **Reset to Edit mode** clears the run and keeps the layout.
-4. Drag the background to pan, scroll to zoom, and use **Fit graph** or `Ctrl+0`
-   to frame the graph.
-5. Use the **File** menu to export images or open the output folder.
+The interface, export captions, errors, and source comments are in Mexican Spanish.
+Code identifiers and CSV headers remain in English. All controls are in the main
+window; there is no menu bar.
 
-Every node shows `[distance, predecessor]`, using `∞` and `null` where appropriate.
-Gray means unreached, yellow means tentative, and green means visited. The current
-node has a dark fill and dashed outer ring. Captions identify states and the start;
-the target keeps its red border throughout. Bold labels indicate improvements in
-the current iteration. Teal edges highlight the final shortest path.
+1. In **MODO EDICIÓN**, drag nodes to arrange the graph. Connections follow
+   immediately; positions are saved when you release the mouse.
+2. In **Recorrido**, select **Nodo de inicio** and **Nodo de destino**, then click
+   **Iniciar Dijkstra**. Use **Siguiente** and **Anterior** to browse stored phases.
+   **Volver a editar** clears the run and keeps the graph and edit history.
+3. In **Editar grafo**, use **ID nuevo** to add a node or rename the selected one.
+   **Eliminar nodo seleccionado** also removes its connections. At least one node
+   must remain. Clicking a node on the canvas selects it in the editor.
+4. Choose **Desde**, **Hasta**, and a positive **Peso**, then **Guardar conexión**
+   to create an edge or change its weight. Use a decimal point, for example `2.5`.
+   **Eliminar conexión** removes the selected edge.
+5. Export with the buttons below the graph. **Abrir carpeta** opens the output
+   directory; **Salir** closes the application.
+
+Graph edits save automatically. **↶ / ↷**, beside **Ajustar vista**, undo or redo
+node movements, additions, deletions, ID changes, edge changes, and start/target
+selections. A drag counts as one action. Up to 100 actions are kept for the current
+session; a new edit after undo clears the redo branch. Algorithm mode locks edits
+and undo/redo. Undoing a data edit also updates the saved files.
+
+| Shortcut / gesture | Action |
+| --- | --- |
+| `Ctrl+Z` / `Ctrl+Y` (also `Ctrl+Shift+Z`) | Undo / redo graph edits |
+| `Ctrl+0` | Fit the graph |
+| `Ctrl+Q` | Exit |
+| Background drag / mouse wheel | Pan / zoom |
+
+Every node shows `[distancia, predecesor]`, keeping the classroom symbols `∞` and
+`null`. Gray means unreached, yellow means tentative, and green means visited.
+The current node has a dark fill and dashed ring. Captions identify the start and
+node state; the target keeps its red border. Bold labels indicate improvements in
+the current step. Teal edges highlight the final path. The legend uses two columns.
 
 ## How the algorithm works
 
@@ -91,25 +113,29 @@ An edge is listed only once: `1,2,7` also connects 2 to 1. Duplicate nodes or ed
 self-loops, unknown endpoints, malformed records, and invalid weights are rejected
 with understandable errors. Invalid layouts are reported; absent layout files or
 missing positions receive deterministic fallback coordinates without moving nodes
-that already have saved positions. Layout saves use an atomic file replacement.
+that already have saved positions. Layout saves use an atomic file replacement. Topology edits stage both CSV files
+and the layout before replacing them. Write failures trigger a rollback; if the
+rollback itself fails, recovery copies are retained and their paths are reported.
 
 Edit the CSV files while the application is closed and restart to load changes.
 Start/target selections and algorithm state are never written into the data files.
-Graph topology editing in the GUI is outside this version's scope.
+
 
 ## Exports
 
-After initialization, the **File** menu provides:
+After initialization, the export buttons below the graph provide:
 
-- **Export current phase** → `current_step_05.png`, for example.
-- **Export all phases individually** → `steps/step_00.png`, `step_01.png`, etc.
-- **Export combined image** → `all_steps.png`, a grid with up to three columns.
-- **Export final shortest path** → `final_path.png`, even while viewing an earlier phase.
+- **Paso actual** → `current_step_05.png`, for example.
+- **Pasos separados** → `steps/step_00.png`, `step_01.png`, etc.
+- **Imagen conjunta** → `all_steps.png`, a grid with up to three columns.
+- **Ruta final** → `final_path.png`, even while viewing an earlier phase.
 
 Each action creates a new timestamped directory inside `output/`, including
 microseconds to avoid overwrites. No file or directory prompt is required. A
-non-blocking status-bar message shows the destination; **Open output folder**
-opens it in the system file manager.
+persistent, non-blocking success banner shows the image count and destination,
+with a button to open that export folder. There is also a status-bar confirmation
+and a desktop attention request. Dismiss the banner with **×**. The sidebar's
+**Abrir carpeta** opens the main output directory.
 
 Exports render a separate Qt scene using the same graph coordinates, labels, and
 colors. They include step information, never application controls, and leave the
@@ -125,7 +151,7 @@ Generated output is ignored by Git.
 src/dijkstra_visualizer/
 ├── core/       # Graph validation, immutable states, manual Dijkstra
 ├── io/         # CSV loading and layout persistence
-├── ui/         # Qt window, graph scene, node and edge items
+├── ui/         # Qt window, graph editor, scene, node and edge items
 ├── export/     # Scene rendering and combined images
 └── paths.py    # Source-checkout data and output locations
 data/           # Demonstration graph and saved layout
@@ -147,9 +173,28 @@ uv run ruff format --check .
 
 To apply formatting, use `uv run ruff format .`. Tests cover graph validation,
 shortest paths, predecessors, disconnected graphs, snapshot immutability,
-NetworkX reference comparisons, mouse interaction, layout restoration, and all
-export workflows. Qt tests run offscreen by default and use temporary data/output
-folders; they do not alter the example graph.
+NetworkX reference comparisons, graph editing, persisted undo/redo, write-failure
+recovery, mouse interaction, layout restoration, and export notifications. Qt tests
+run offscreen and use temporary data/output folders; they do not alter your graph.
 
-Possible future additions include topology editing, automatic playback, and a
-packaged desktop installer.
+## Linux desktop messages
+
+`This plugin supports grabbing the mouse only for popup windows` originates in
+[Qt's Wayland platform integration](https://github.com/qt/qtbase/blob/dev/src/plugins/platforms/wayland/qwaylandwindow.cpp).
+If input is affected and XWayland is installed, an optional per-launch workaround is:
+
+```sh
+QT_QPA_PLATFORM=xcb uv run dijkstra-visualizer
+```
+
+This uses Qt's X11 backend without changing desktop settings. Native Wayland remains
+the default when selected by your environment. See [Qt's platform documentation](https://doc.qt.io/qt-6/qguiapplication.html#platformName-prop).
+
+`WARNING: Glycin running without sandbox` comes from the desktop's
+[Glycin image-loading library](https://github.com/GNOME/glycin#sandboxing-and-inner-workings).
+The application does not use Glycin directly; desktop theme or file-manager image
+loading is a possible source. The warning was not reproduced during application
+startup and export checks. It is not evidence of a failed Dijkstra calculation or
+PNG export. No sandbox protections are disabled and no warnings are suppressed.
+
+Possible future additions include automatic playback and a packaged desktop installer.
