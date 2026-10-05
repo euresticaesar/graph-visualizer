@@ -35,6 +35,12 @@ from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
 from dijkstra_visualizer.ui.node_item import format_distance
 
 
+class ControlTabs(QTabWidget):
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.tabBar().setFixedWidth(self.contentsRect().width())
+
+
 @dataclass
 class EditSnapshot:
     graph: nx.Graph
@@ -122,7 +128,8 @@ class MainWindow(QMainWindow):
         self.mode_label = QLabel()
         self.mode_label.setObjectName("mode")
         controls.addWidget(self.mode_label)
-        self.tabs = QTabWidget()
+        self.tabs = ControlTabs()
+        self.tabs.tabBar().setExpanding(True)
         self.tabs.addTab(self._scroll_page(self._algorithm_controls()), "Recorrido")
         self.editor = GraphEditor(self.graph)
         self.tabs.addTab(self._scroll_page(self.editor), "Editar grafo")
@@ -304,7 +311,7 @@ class MainWindow(QMainWindow):
             QToolButton#history { font-size: 20px; padding: 2px 8px; }
             QPushButton:hover, QToolButton:hover { background: #edf3f8; border-color: #94a3b8; }
             QPushButton#primary {
-                background: #0f766e; color: white; border-color: #0f766e; border-radius: 18px;
+                background: #0f766e; color: white; border-color: #0f766e;
             }
             QPushButton#primary:hover { background: #115e59; }
             QPushButton:disabled, QPushButton#primary:disabled, QToolButton:disabled,
