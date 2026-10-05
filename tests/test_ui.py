@@ -28,7 +28,7 @@ def test_playback_controls_and_reset(window, qapp):
     window.show_state(len(states) - 1)
     assert not window.next_button.isEnabled()
     assert window.graph_view.edges[1, 5].pen().color().name() == PATH
-    assert "distance 16" in window.detail_label.text()
+    assert "distancia 16" in window.detail_label.text()
     window.reset()
     assert window.graph_view.positions() == positions
     assert not window.states
@@ -73,7 +73,7 @@ def test_start_equals_target_supported(window):
     window.target_combo.setCurrentIndex(0)
     window.initialize()
     window.show_state(1)
-    assert "distance 0" in window.detail_label.text()
+    assert "distancia 0" in window.detail_label.text()
     assert window.graph_view.nodes[1].is_target
 
 
@@ -95,7 +95,7 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
     try:
         window.initialize()
         window.show_state(len(window.states) - 1)
-        assert "unreachable" in window.detail_label.text()
+        assert "No hay ruta" in window.detail_label.text()
         assert window.graph_view.nodes[3].label.text() == "[∞, null]"
         assert window.graph_view.nodes[3].is_target
         assert all(edge.pen().widthF() == 2 for edge in window.graph_view.edges.values())
@@ -105,24 +105,25 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
         window.close()
 
 
-def test_failed_layout_save_allows_cancel_or_discard(window, monkeypatch):
+def test_failed_layout_save_restores_positions_and_history(window, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
     from dijkstra_visualizer.ui import main_window
 
     warnings = []
+    original = window.graph_view.positions()
+    history_index = window.history_index
+    layout = (window.data_dir / "layout.json").read_bytes()
 
     def failed_save(*args):
-        raise OSError("Read-only directory")
+        raise OSError("Directorio de solo lectura")
 
     monkeypatch.setattr(main_window, "save_layout", failed_save)
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
     window.graph_view.nodes[1].setPos(200, 150)
     window._save_layout()
-    assert warnings == ["Read-only directory"]
-    assert window.layout_dirty
-    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Cancel)
-    assert not window.close()
-    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Discard)
+    assert "No se aplicó el cambio" in warnings[0]
+    assert window.graph_view.positions() == original
+    assert window.history_index == history_index
+    assert (window.data_dir / "layout.json").read_bytes() == layout
     assert window.close()
-    window.layout_dirty = False

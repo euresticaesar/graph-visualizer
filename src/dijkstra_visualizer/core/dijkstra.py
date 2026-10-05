@@ -10,9 +10,9 @@ from dijkstra_visualizer.core.models import DijkstraState
 def dijkstra_steps(graph: nx.Graph, start: int, target: int) -> list[DijkstraState]:
     validate_graph(graph)
     if type(start) is not int or start not in graph:
-        raise ValueError("Select a start node that exists in the graph.")
+        raise ValueError("Selecciona un nodo de inicio que exista en el grafo.")
     if type(target) is not int or target not in graph:
-        raise ValueError("Select a target node that exists in the graph.")
+        raise ValueError("Selecciona un nodo de destino que exista en el grafo.")
 
     distances = dict.fromkeys(graph, math.inf)
     predecessors: dict[int, int | None] = dict.fromkeys(graph)
@@ -33,7 +33,7 @@ def dijkstra_steps(graph: nx.Graph, start: int, target: int) -> list[DijkstraSta
                     continue
                 candidate = distance + graph[current][neighbor]["weight"]
                 if not math.isfinite(candidate):
-                    raise ValueError("Path distances exceed the supported numeric range.")
+                    raise ValueError("Las distancias exceden el rango numérico permitido.")
                 if candidate < distances[neighbor]:
                     distances[neighbor] = candidate
                     predecessors[neighbor] = current
@@ -62,7 +62,7 @@ def reconstruct_path(state: DijkstraState, start: int, target: int) -> list[int]
     seen: set[int] = set()
     while current is not None:
         if current in seen:
-            raise ValueError("The predecessor mapping contains a cycle.")
+            raise ValueError("Los predecesores contienen un ciclo.")
         seen.add(current)
         path.append(current)
         if current == start:

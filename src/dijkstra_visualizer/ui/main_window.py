@@ -1,28 +1,47 @@
+import math
+from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
+import networkx as nx
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from dijkstra_visualizer.core.dijkstra import dijkstra_steps, reconstruct_path
+from dijkstra_visualizer.core.graph import validate_graph
 from dijkstra_visualizer.core.models import DijkstraState
 from dijkstra_visualizer.export.image_exporter import ExportKind, export_graph
-from dijkstra_visualizer.io.graph_io import load_graph
-from dijkstra_visualizer.io.layout_io import load_layout, save_layout
+from dijkstra_visualizer.io.graph_io import load_graph, save_graph_data
+from dijkstra_visualizer.io.layout_io import PositionMap, load_layout, save_layout
 from dijkstra_visualizer.paths import DATA_DIR, OUTPUT_DIR
+from dijkstra_visualizer.ui.graph_editor import GraphEditor
 from dijkstra_visualizer.ui.graph_view import GraphView
 from dijkstra_visualizer.ui.node_item import format_distance
+
+
+@dataclass
+class EditSnapshot:
+    graph: nx.Graph
+    positions: PositionMap
+    start: int
+    target: int
+    description: str
 
 
 class MainWindow(QMainWindow):
@@ -33,15 +52,17 @@ class MainWindow(QMainWindow):
         positions = load_layout(data_dir / "layout.json", self.graph)
         self.states: list[DijkstraState] = []
         self.state_index = 0
-        self.layout_dirty = False
-        self.setWindowTitle("Dijkstra Visualizer · Fundamentals of AI")
-        self.resize(1280, 800)
-        self.setMinimumSize(900, 620)
+        self.history: list[EditSnapshot] = []
+        self.history_index = 0
+        self.last_export_path: Path | None = None
+        self.setWindowTitle("Visualizador de Dijkstra · Fundamentos de IA")
+        self.resize(1380, 940)
+        self.setMinimumSize(1040, 740)
         self.graph_view = GraphView(self.graph, positions)
         self.graph_view.layout_changed.connect(self._save_layout)
         self._build_ui()
-        self._build_menu()
         self._apply_style()
+        self.history.append(self._snapshot("Estado inicial"))
         self.reset()
         QTimer.singleShot(0, self.graph_view.fit_graph)
 
@@ -53,6 +74,27 @@ class MainWindow(QMainWindow):
     def target(self) -> int:
         return self.target_combo.currentData()
 
+    def _action(self, text: str, callback, shortcuts=()) -> QAction:
+        action = QAction(text, self)
+        action.triggered.connect(callback)
+        action.setShortcuts(list(shortcuts))
+        self.addAction(action)
+        return action
+
+    def _action_button(self, action: QAction) -> QToolButton:
+        button = QToolButton()
+        button.setDefaultAction(action)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        return button
+
+    @staticmethod
+    def _scroll_page(widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(widget)
+        return scroll
+
     def _build_ui(self) -> None:
         central = QWidget()
         row = QHBoxLayout(central)
@@ -60,38 +102,165 @@ class MainWindow(QMainWindow):
         row.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(280)
+        sidebar.setFixedWidth(340)
         controls = QVBoxLayout(sidebar)
-        controls.setContentsMargins(22, 22, 22, 22)
+        controls.setContentsMargins(20, 20, 20, 16)
         controls.setSpacing(12)
         title = QLabel("Dijkstra")
         title.setObjectName("title")
         controls.addWidget(title)
-        controls.addWidget(QLabel("Fundamentals of AI\nShortest paths, one step at a time."))
+        controls.addWidget(QLabel("Fundamentos de IA · Rutas más cortas"))
         self.mode_label = QLabel()
         self.mode_label.setObjectName("mode")
         controls.addWidget(self.mode_label)
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._scroll_page(self._algorithm_controls()), "Recorrido")
+        self.editor = GraphEditor(self.graph)
+        self.tabs.addTab(self._scroll_page(self.editor), "Editar grafo")
+        self.editor.add_node_requested.connect(self.add_node)
+        self.editor.rename_node_requested.connect(self.rename_node)
+        self.editor.delete_node_requested.connect(self.delete_node)
+        self.editor.save_edge_requested.connect(self.set_edge)
+        self.editor.delete_edge_requested.connect(self.delete_edge)
+        self.graph_view.node_selected.connect(self.editor.select_node)
+        controls.addWidget(self.tabs, 1)
+
+        self.legend_grid = QGridLayout()
+        self.legend_grid.setHorizontalSpacing(16)
+        self.legend_grid.setVerticalSpacing(8)
+        for index, (symbol, color, text) in enumerate(
+            [
+                ("●", "#64748b", "Sin alcanzar"),
+                ("●", "#b48412", "Tentativo"),
+                ("●", "#329758", "Visitado"),
+                ("●", "#18794e", "Actual"),
+                ("○", "#dc3545", "Destino"),
+                ("━", "#087e8b", "Ruta final"),
+            ]
+        ):
+            label = QLabel(f'<span style="color:{color}">{symbol}</span> {text}')
+            self.legend_grid.addWidget(label, index // 2, index % 2)
+        self.legend_grid.setColumnStretch(0, 1)
+        self.legend_grid.setColumnStretch(1, 1)
+        controls.addLayout(self.legend_grid)
+        notation = QLabel("[distancia, predecesor]\nNegritas: mejora en el paso actual")
+        notation.setObjectName("hint")
+        controls.addWidget(notation)
+        export_row = QHBoxLayout()
+        export_row.addWidget(QLabel("Exportar:"))
+        self.export_actions: list[QAction] = []
+        self.export_buttons: list[QToolButton] = []
+        for _index, (label, kind) in enumerate(
+            [
+                ("Paso actual", "current"),
+                ("Pasos separados", "all"),
+                ("Imagen conjunta", "combined"),
+                ("Ruta final", "final"),
+            ]
+        ):
+            action = self._action(label, lambda checked=False, kind=kind: self.export(kind))
+            action.setToolTip("Inicia Dijkstra para exportar las imágenes a output/")
+            self.export_actions.append(action)
+            button = self._action_button(action)
+            self.export_buttons.append(button)
+            export_row.addWidget(button, 1)
+        footer = QHBoxLayout()
+        self.output_button = QPushButton("Abrir carpeta")
+        self.output_button.setToolTip("Abrir la carpeta de exportaciones")
+        self.output_button.clicked.connect(self.open_output_folder)
+        self.exit_button = QPushButton("Salir")
+        self.exit_button.setShortcut("Ctrl+Q")
+        self.exit_button.clicked.connect(self.close)
+        footer.addWidget(self.output_button, 2)
+        footer.addWidget(self.exit_button, 1)
+        controls.addLayout(footer)
+
+        graph_panel = QWidget()
+        graph_column = QVBoxLayout(graph_panel)
+        graph_column.setContentsMargins(14, 12, 14, 12)
+        toolbar = QHBoxLayout()
+        self.graph_info = QLabel()
+        toolbar.addWidget(self.graph_info, 1)
+        self.undo_action = self._action("↶", self.undo, ["Ctrl+Z"])
+        self.redo_action = self._action("↷", self.redo, ["Ctrl+Y", "Ctrl+Shift+Z"])
+        self.undo_button = self._action_button(self.undo_action)
+        self.redo_button = self._action_button(self.redo_action)
+        for button, name in ((self.undo_button, "Deshacer"), (self.redo_button, "Rehacer")):
+            button.setObjectName("history")
+            button.setAccessibleName(name)
+            button.setFixedWidth(42)
+            toolbar.addWidget(button)
+        self.fit_button = QPushButton("Ajustar vista")
+        self.fit_button.setShortcut("Ctrl+0")
+        self.fit_button.clicked.connect(self.graph_view.fit_graph)
+        toolbar.addWidget(self.fit_button)
+        graph_column.addLayout(toolbar)
+        self.view_hint = QLabel()
+        self.view_hint.setObjectName("hint")
+        graph_column.addWidget(self.view_hint)
+        self.export_notice = QFrame()
+        self.export_notice.setObjectName("exportNotice")
+        notice_row = QHBoxLayout(self.export_notice)
+        notice_text = QVBoxLayout()
+        self.export_notice_title = QLabel("✓ Exportación completada")
+        self.export_notice_title.setObjectName("section")
+        notice_text.addWidget(self.export_notice_title)
+        self.export_notice_path = QLabel()
+        self.export_notice_path.setWordWrap(True)
+        self.export_notice_path.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        notice_text.addWidget(self.export_notice_path)
+        notice_row.addLayout(notice_text, 1)
+        self.notice_open_button = QPushButton("Abrir carpeta")
+        self.notice_open_button.clicked.connect(self.open_last_export_folder)
+        notice_row.addWidget(self.notice_open_button)
+        dismiss = QPushButton("×")
+        dismiss.setAccessibleName("Cerrar aviso de exportación")
+        dismiss.setFixedWidth(32)
+        dismiss.clicked.connect(self.export_notice.hide)
+        notice_row.addWidget(dismiss)
+        self.export_notice.hide()
+        graph_column.addWidget(self.export_notice)
+        graph_column.addWidget(self.graph_view, 1)
+        graph_column.addLayout(export_row)
+        row.addWidget(sidebar)
+        row.addWidget(graph_panel, 1)
+        self.setCentralWidget(central)
+        self.statusBar().showMessage("Grafo cargado. Los cambios se guardan automáticamente.")
+
+    def _algorithm_controls(self) -> QWidget:
+        page = QWidget()
+        controls = QVBoxLayout(page)
+        controls.setContentsMargins(0, 12, 4, 8)
+        controls.setSpacing(10)
         self.start_combo, self.target_combo = QComboBox(), QComboBox()
         for node in sorted(self.graph):
-            self.start_combo.addItem(f"Node {node}", node)
-            self.target_combo.addItem(f"Node {node}", node)
+            self.start_combo.addItem(f"Nodo {node}", node)
+            self.target_combo.addItem(f"Nodo {node}", node)
         self.target_combo.setCurrentIndex(self.target_combo.count() - 1)
-        for label, combo in (("Start node", self.start_combo), ("Target node", self.target_combo)):
+        for label, combo in (
+            ("Nodo de inicio", self.start_combo),
+            ("Nodo de destino", self.target_combo),
+        ):
             controls.addWidget(QLabel(label))
             controls.addWidget(combo)
             combo.currentIndexChanged.connect(self._selection_changed)
-        self.run_button = QPushButton("Initialize Dijkstra")
+        self.run_button = QPushButton("Iniciar Dijkstra")
         self.run_button.setObjectName("primary")
         self.run_button.clicked.connect(self.initialize)
         controls.addWidget(self.run_button)
         navigation = QHBoxLayout()
-        self.previous_button, self.next_button = QPushButton("← Previous"), QPushButton("Next →")
+        self.previous_button, self.next_button = (
+            QPushButton("← Anterior"),
+            QPushButton("Siguiente →"),
+        )
         self.previous_button.clicked.connect(lambda: self.show_state(self.state_index - 1))
         self.next_button.clicked.connect(lambda: self.show_state(self.state_index + 1))
         navigation.addWidget(self.previous_button)
         navigation.addWidget(self.next_button)
         controls.addLayout(navigation)
-        self.reset_button = QPushButton("Reset to Edit mode")
+        self.reset_button = QPushButton("Volver a editar")
         self.reset_button.clicked.connect(self.reset)
         controls.addWidget(self.reset_button)
         self.step_label = QLabel()
@@ -99,65 +268,9 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.step_label)
         self.detail_label = QLabel()
         self.detail_label.setWordWrap(True)
-        self.detail_label.setMinimumHeight(90)
         controls.addWidget(self.detail_label)
         controls.addStretch()
-        legend = QLabel(
-            '<span style="color:#64748b">●</span> Unreached &nbsp; '
-            '<span style="color:#b48412">●</span> Tentative<br>'
-            '<span style="color:#329758">●</span> Visited &nbsp; '
-            '<span style="color:#18794e">●</span> Current<br>'
-            '<span style="color:#dc3545">○</span> Target border &nbsp; '
-            '<span style="color:#087e8b">━</span> Final path<br><br>'
-            "[distance, predecessor]<br>Bold label = improved this step"
-        )
-        controls.addWidget(legend)
-        graph_panel = QWidget()
-        graph_column = QVBoxLayout(graph_panel)
-        graph_column.setContentsMargins(0, 0, 0, 0)
-        toolbar = QHBoxLayout()
-        hint = QLabel("  Drag nodes to arrange · Drag background to pan · Scroll to zoom")
-        hint.setObjectName("hint")
-        toolbar.addWidget(hint)
-        toolbar.addStretch()
-        fit_button = QPushButton("Fit graph")
-        fit_button.clicked.connect(self.graph_view.fit_graph)
-        toolbar.addWidget(fit_button)
-        toolbar.setContentsMargins(8, 10, 16, 10)
-        graph_column.addLayout(toolbar)
-        graph_column.addWidget(self.graph_view)
-        row.addWidget(sidebar)
-        row.addWidget(graph_panel, 1)
-        self.setCentralWidget(central)
-        self.statusBar().showMessage(
-            f"Loaded {len(self.graph)} nodes and {self.graph.number_of_edges()} edges"
-        )
-
-    def _build_menu(self) -> None:
-        file_menu = self.menuBar().addMenu("&File")
-        self.export_actions: list[QAction] = []
-        for label, kind in (
-            ("Export current phase", "current"),
-            ("Export all phases individually", "all"),
-            ("Export combined image", "combined"),
-            ("Export final shortest path", "final"),
-        ):
-            action = file_menu.addAction(label)
-            action.setToolTip("Initialize Dijkstra, then export to output/ automatically")
-            action.triggered.connect(lambda checked=False, kind=kind: self.export(kind))
-            self.export_actions.append(action)
-        file_menu.addSeparator()
-        open_output = file_menu.addAction("Open output folder")
-        open_output.triggered.connect(self.open_output_folder)
-        file_menu.addSeparator()
-        exit_action = QAction("Exit", self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        view_menu = self.menuBar().addMenu("&View")
-        fit = view_menu.addAction("Fit graph")
-        fit.setShortcut("Ctrl+0")
-        fit.triggered.connect(self.graph_view.fit_graph)
+        return page
 
     def _apply_style(self) -> None:
         self.setStyleSheet("""
@@ -166,43 +279,255 @@ class MainWindow(QMainWindow):
             QFrame#sidebar { background: #ffffff; border-right: 1px solid #dce3ed; }
             QFrame#sidebar QLabel { background: transparent; }
             QLabel#title { font-size: 30px; font-weight: 700; }
-            QLabel#mode { color: #087e8b; font-weight: 600; padding: 8px 0; }
-            QLabel#step { font-size: 17px; font-weight: 600; padding-top: 10px; }
+            QLabel#mode { color: #087e8b; font-weight: 600; }
+            QLabel#section { font-weight: 600; padding-top: 4px; }
+            QLabel#step { font-size: 17px; font-weight: 600; padding-top: 6px; }
             QLabel#hint { color: #64748b; font-size: 12px; }
-            QPushButton, QComboBox {
-                background: #ffffff; border: 1px solid #cbd5e1;
-                border-radius: 6px; padding: 8px 10px;
+            QLabel#error { color: #b42318; }
+            QFrame#exportNotice {
+                background: #e9f8ef; border: 1px solid #9fd7b5; border-radius: 6px;
             }
-            QPushButton:hover { background: #edf3f8; border-color: #94a3b8; }
+            QFrame#exportNotice QLabel { background: transparent; color: #14532d; }
+            QPushButton, QToolButton, QComboBox, QLineEdit {
+                background: #ffffff; border: 1px solid #cbd5e1;
+                border-radius: 6px; padding: 8px 9px;
+            }
+            QToolButton#history { font-size: 20px; padding: 2px 8px; }
+            QPushButton:hover, QToolButton:hover { background: #edf3f8; border-color: #94a3b8; }
             QPushButton#primary { background: #0f766e; color: white; border-color: #0f766e; }
             QPushButton#primary:hover { background: #115e59; }
-            QPushButton:disabled, QPushButton#primary:disabled, QComboBox:disabled {
+            QPushButton:disabled, QPushButton#primary:disabled, QToolButton:disabled,
+            QComboBox:disabled, QLineEdit:disabled {
                 background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;
             }
             QComboBox QAbstractItemView { selection-background-color: #ccfbf1; }
             QStatusBar { border-top: 1px solid #dce3ed; color: #526179; }
-            QMenu { background: white; }
-            QMenu::item:selected { background: #ccfbf1; }
+            QScrollBar:vertical { background: #eef2f7; width: 10px; margin: 0; }
+            QScrollBar::handle:vertical {
+                background: #b6c3d3; min-height: 28px; border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
+            QTabWidget::pane { border: 0; }
+            QTabBar::tab { padding: 9px 18px; background: #f1f5f9; }
+            QTabBar::tab:selected { background: #e1f4f0; color: #0f766e; }
         """)
 
+    def _snapshot(self, description: str) -> EditSnapshot:
+        return EditSnapshot(
+            self.graph.copy(), self.graph_view.positions(), self.start, self.target, description
+        )
+
+    def _restore(self, snapshot: EditSnapshot) -> None:
+        topology_changed = not nx.utils.graphs_equal(self.graph, snapshot.graph)
+        self.graph = snapshot.graph.copy()
+        if topology_changed:
+            self.graph_view.set_graph(self.graph, snapshot.positions)
+        else:
+            self.graph_view.graph = self.graph
+            for node, position in snapshot.positions.items():
+                self.graph_view.nodes[node].setPos(*position)
+        for combo, selected in (
+            (self.start_combo, snapshot.start),
+            (self.target_combo, snapshot.target),
+        ):
+            with QSignalBlocker(combo):
+                if [combo.itemData(i) for i in range(combo.count())] != sorted(self.graph):
+                    combo.clear()
+                    for node in sorted(self.graph):
+                        combo.addItem(f"Nodo {node}", node)
+                combo.setCurrentIndex(combo.findData(selected))
+        self.editor.set_graph(self.graph)
+        self.graph_view.apply_state(None, self.start, self.target)
+        self.graph_info.setText(
+            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones"
+        )
+
+    def _persist_and_restore(self, snapshot: EditSnapshot) -> bool:
+        current = self.history[self.history_index]
+        try:
+            validate_graph(snapshot.graph)
+            if not nx.utils.graphs_equal(current.graph, snapshot.graph):
+                save_graph_data(self.data_dir, snapshot.graph, snapshot.positions)
+            elif current.positions != snapshot.positions:
+                save_layout(self.data_dir / "layout.json", snapshot.positions)
+        except (OSError, ValueError) as error:
+            self._restore(current)
+            QMessageBox.warning(self, "No se pudo guardar", f"No se aplicó el cambio.\n{error}")
+            return False
+        self._restore(snapshot)
+        return True
+
+    def _commit_edit(self, snapshot: EditSnapshot) -> bool:
+        if self.states:
+            return False
+        current = self.history[self.history_index]
+        if (
+            nx.utils.graphs_equal(current.graph, snapshot.graph)
+            and current.positions == snapshot.positions
+            and (current.start, current.target) == (snapshot.start, snapshot.target)
+        ):
+            return False
+        if not self._persist_and_restore(snapshot):
+            return False
+        del self.history[self.history_index + 1 :]
+        self.history.append(snapshot)
+        # Conserva hasta 100 acciones sin acumular copias indefinidamente.
+        if len(self.history) > 101:
+            self.history.pop(0)
+        self.history_index = len(self.history) - 1
+        self._sync_history()
+        saved = current.positions != snapshot.positions or not nx.utils.graphs_equal(
+            current.graph, snapshot.graph
+        )
+        message = snapshot.description + (" · Guardado" if saved else "")
+        self.statusBar().showMessage(message, 5000)
+        return True
+
+    def _sync_history(self) -> None:
+        editable = not self.states
+        self.undo_action.setEnabled(editable and self.history_index > 0)
+        self.redo_action.setEnabled(editable and self.history_index < len(self.history) - 1)
+        undo_text = self.history[self.history_index].description if self.history_index else ""
+        redo_text = (
+            self.history[self.history_index + 1].description
+            if self.history_index < len(self.history) - 1
+            else ""
+        )
+        self.undo_action.setToolTip(
+            f"Deshacer: {undo_text} (Ctrl+Z)" if undo_text else "Deshacer (Ctrl+Z)"
+        )
+        self.redo_action.setToolTip(
+            f"Rehacer: {redo_text} (Ctrl+Y)" if redo_text else "Rehacer (Ctrl+Y)"
+        )
+
+    def undo(self) -> None:
+        if self.states or self.history_index == 0:
+            return
+        description = self.history[self.history_index].description
+        if self._persist_and_restore(self.history[self.history_index - 1]):
+            self.history_index -= 1
+            self._sync_history()
+            self.statusBar().showMessage(f"Deshecho: {description}", 5000)
+
+    def redo(self) -> None:
+        if self.states or self.history_index >= len(self.history) - 1:
+            return
+        snapshot = self.history[self.history_index + 1]
+        if self._persist_and_restore(snapshot):
+            self.history_index += 1
+            self._sync_history()
+            self.statusBar().showMessage(f"Rehecho: {snapshot.description}", 5000)
+
     def _selection_changed(self) -> None:
-        if not self.states:
-            self.graph_view.apply_state(None, self.start, self.target)
+        if not self.states and self.history:
+            self._commit_edit(self._snapshot("Cambiar inicio o destino"))
+
+    def _save_layout(self) -> None:
+        self._commit_edit(self._snapshot("Mover nodos"))
+
+    def add_node(self, node: int) -> bool:
+        if self.states:
+            return False
+        if type(node) is not int or node <= 0 or node in self.graph:
+            self.editor.error_label.setText("Usa un ID positivo que todavía no exista.")
+            return False
+        snapshot = self._snapshot(f"Agregar nodo {node}")
+        snapshot.graph.add_node(node)
+        center = self.graph_view.mapToScene(self.graph_view.viewport().rect().center())
+        x, y = center.x(), center.y()
+        while any(math.hypot(x - px, y - py) < 100 for px, py in snapshot.positions.values()):
+            x += 110
+        snapshot.positions[node] = (x, y)
+        if self._commit_edit(snapshot):
+            self.editor.select_node(node)
+            self.graph_view.ensureVisible(self.graph_view.nodes[node])
+            return True
+        return False
+
+    def rename_node(self, node: int, new_id: int) -> bool:
+        if self.states:
+            return False
+        if node not in self.graph or type(new_id) is not int or new_id <= 0 or new_id in self.graph:
+            self.editor.error_label.setText("Elige un nodo existente y un ID positivo disponible.")
+            return False
+        snapshot = self._snapshot(f"Cambiar ID de {node} a {new_id}")
+        snapshot.graph = nx.relabel_nodes(snapshot.graph, {node: new_id}, copy=True)
+        snapshot.positions[new_id] = snapshot.positions.pop(node)
+        if snapshot.start == node:
+            snapshot.start = new_id
+        if snapshot.target == node:
+            snapshot.target = new_id
+        if self._commit_edit(snapshot):
+            self.editor.select_node(new_id)
+            return True
+        return False
+
+    def delete_node(self, node: int) -> bool:
+        if self.states:
+            return False
+        if node not in self.graph or len(self.graph) == 1:
+            self.editor.error_label.setText("El grafo debe conservar al menos un nodo.")
+            return False
+        snapshot = self._snapshot(f"Eliminar nodo {node}")
+        snapshot.graph.remove_node(node)
+        del snapshot.positions[node]
+        if snapshot.start == node:
+            snapshot.start = min(snapshot.graph)
+        if snapshot.target == node:
+            snapshot.target = max(snapshot.graph)
+        return self._commit_edit(snapshot)
+
+    def set_edge(self, source: int, target: int, weight: float) -> bool:
+        if self.states:
+            return False
+        if (
+            source not in self.graph
+            or target not in self.graph
+            or source == target
+            or isinstance(weight, bool)
+            or not isinstance(weight, (int, float))
+            or not math.isfinite(weight)
+            or weight <= 0
+        ):
+            self.editor.error_label.setText(
+                "Conecta dos nodos distintos con un peso positivo y finito."
+            )
+            return False
+        snapshot = self._snapshot(f"Guardar conexión {source}–{target}")
+        snapshot.graph.add_edge(source, target, weight=weight)
+        return self._commit_edit(snapshot)
+
+    def delete_edge(self, source: int, target: int) -> bool:
+        if self.states or not self.graph.has_edge(source, target):
+            return False
+        snapshot = self._snapshot(f"Eliminar conexión {source}–{target}")
+        snapshot.graph.remove_edge(source, target)
+        return self._commit_edit(snapshot)
 
     def initialize(self) -> None:
         try:
             self.states = dijkstra_steps(self.graph, self.start, self.target)
         except ValueError as error:
-            QMessageBox.warning(self, "Cannot initialize Dijkstra", str(error))
+            QMessageBox.warning(self, "No se pudo iniciar Dijkstra", str(error))
             return
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(False)
         self.target_combo.setEnabled(False)
         self.run_button.setEnabled(False)
         self.reset_button.setEnabled(True)
-        self.mode_label.setText("ALGORITHM MODE")
+        self.tabs.setCurrentIndex(0)
+        self.tabs.setTabEnabled(1, False)
+        self.editor.setEnabled(False)
+        self.mode_label.setText("MODO ALGORITMO")
+        self.view_hint.setText(
+            "Arrastra el fondo para mover la vista · Usa la rueda para acercar o alejar"
+        )
         for action in self.export_actions:
             action.setEnabled(True)
+        self._sync_history()
         self.show_state(0)
 
     def show_state(self, index: int) -> None:
@@ -214,26 +539,26 @@ class MainWindow(QMainWindow):
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
-        self.step_label.setText(f"Step {index} / {len(self.states) - 1}")
+        self.step_label.setText(f"Paso {index} / {len(self.states) - 1}")
         if final:
             path = reconstruct_path(state, self.start, self.target)
             self.detail_label.setText(
-                f"Target settled · distance {format_distance(state.distances[self.target])}\n"
+                f"Destino visitado · distancia {format_distance(state.distances[self.target])}\n"
                 + " → ".join(map(str, path))
                 if path
-                else f"Target {self.target} is unreachable from node {self.start}.\n"
-                "No reachable unvisited nodes remain."
+                else f"No hay ruta del nodo {self.start} al nodo {self.target}.\n"
+                "Ya no quedan nodos alcanzables sin visitar."
             )
         elif state.current_node is None:
             self.detail_label.setText(
-                "Current node: —\nStart distance is 0; all others are ∞.\n"
-                "Next selects the smallest tentative distance."
+                "Nodo actual: —\nLa distancia inicial es 0; las demás son ∞.\n"
+                "Siguiente elige la menor distancia tentativa."
             )
         else:
-            updated = ", ".join(map(str, sorted(state.updated_nodes))) or "none"
+            updated = ", ".join(map(str, sorted(state.updated_nodes))) or "ninguna"
             self.detail_label.setText(
-                f"Current node: {state.current_node}\n"
-                f"Settled nodes: {len(state.visited)}\nImproved labels: {updated}"
+                f"Nodo actual: {state.current_node}\n"
+                f"Nodos visitados: {len(state.visited)}\nEtiquetas mejoradas: {updated}"
             )
 
     def reset(self) -> None:
@@ -249,15 +574,24 @@ class MainWindow(QMainWindow):
         self.previous_button.setEnabled(False)
         self.next_button.setEnabled(False)
         self.reset_button.setEnabled(False)
-        self.mode_label.setText("EDIT MODE")
-        self.step_label.setText("Ready to explore")
+        self.tabs.setTabEnabled(1, True)
+        self.editor.setEnabled(True)
+        self.mode_label.setText("MODO EDICIÓN")
+        self.step_label.setText("Todo listo para empezar")
         self.detail_label.setText(
-            "Arrange the graph, choose a start and target, then initialize.\n"
-            "Positions are saved when you finish dragging."
+            "Acomoda los nodos, elige el inicio y el destino e inicia el recorrido.\n"
+            "En Editar grafo puedes cambiar nodos, conexiones y pesos."
         )
+        self.view_hint.setText(
+            "Arrastra los nodos para acomodarlos · Fondo: mover vista · Rueda: acercar"
+        )
+        self.graph_info.setText(
+            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones"
+        )
+        self._sync_history()
 
     def export(self, kind: ExportKind) -> None:
-        self.statusBar().showMessage("Rendering export…")
+        self.statusBar().showMessage("Generando imágenes…")
         self.statusBar().repaint()
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
@@ -272,43 +606,34 @@ class MainWindow(QMainWindow):
                 self.output_dir,
             )
         except (OSError, ValueError) as error:
-            self.statusBar().showMessage("Export failed", 8000)
-            QMessageBox.warning(self, "Export failed", str(error))
-        else:
-            self.statusBar().showMessage(f"Export completed · {destination}", 15000)
-        finally:
             QApplication.restoreOverrideCursor()
+            self.statusBar().showMessage("No se pudo exportar", 8000)
+            QMessageBox.warning(self, "No se pudo exportar", str(error))
+            return
+        else:
+            QApplication.restoreOverrideCursor()
+        self.last_export_path = destination
+        count = len(self.states) if kind == "all" else 1
+        self.export_notice_title.setText(
+            f"✓ Exportación completada · {count} {'imágenes' if count != 1 else 'imagen'}"
+        )
+        self.export_notice_path.setText(str(destination))
+        self.export_notice.show()
+        self.statusBar().showMessage(f"Exportación completada · {destination}", 15000)
+        QApplication.alert(self, 3000)
+
+    def _open_folder(self, folder: Path) -> None:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder.resolve()))):
+                raise OSError(f"No se pudo abrir el explorador de archivos. Carpeta: {folder}")
+        except OSError as error:
+            QMessageBox.warning(self, "No se pudo abrir la carpeta", str(error))
 
     def open_output_folder(self) -> None:
-        try:
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-            if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.output_dir.resolve()))):
-                raise OSError(f"Could not open the file manager. Output folder: {self.output_dir}")
-        except OSError as error:
-            QMessageBox.warning(self, "Cannot open output folder", str(error))
+        self._open_folder(self.output_dir)
 
-    def _save_layout(self) -> None:
-        self.layout_dirty = True
-        try:
-            save_layout(self.data_dir / "layout.json", self.graph_view.positions())
-        except (OSError, ValueError) as error:
-            QMessageBox.warning(self, "Layout could not be saved", str(error))
-        else:
-            self.layout_dirty = False
-            self.statusBar().showMessage("Layout saved", 4000)
-
-    def closeEvent(self, event) -> None:
-        if self.layout_dirty:
-            self._save_layout()
-            if self.layout_dirty:
-                answer = QMessageBox.question(
-                    self,
-                    "Unsaved layout",
-                    "The layout could not be saved. Close and discard the unsaved positions?",
-                    QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
-                    QMessageBox.StandardButton.Cancel,
-                )
-                if answer != QMessageBox.StandardButton.Discard:
-                    event.ignore()
-                    return
-        super().closeEvent(event)
+    def open_last_export_folder(self) -> None:
+        if self.last_export_path:
+            path = self.last_export_path
+            self._open_folder(path if path.is_dir() else path.parent)

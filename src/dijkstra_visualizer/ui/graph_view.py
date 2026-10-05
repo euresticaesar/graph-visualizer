@@ -1,7 +1,7 @@
 import math
 
 import networkx as nx
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView
 
@@ -14,6 +14,7 @@ from dijkstra_visualizer.ui.node_item import NodeItem
 
 class GraphView(QGraphicsView):
     layout_changed = Signal()
+    node_selected = Signal(object)
 
     def __init__(self, graph: nx.Graph, positions: PositionMap, parent=None):
         super().__init__(parent)
@@ -28,17 +29,34 @@ class GraphView(QGraphicsView):
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.nodes: dict[int, NodeItem] = {}
         self.edges: dict[tuple[int, int], EdgeItem] = {}
-        for node in sorted(graph):
-            item = NodeItem(node)
-            self.scene().addItem(item)
-            item.setPos(*positions[node])
-            item.movement_finished.connect(self._movement_finished)
-            self.nodes[node] = item
-        for source, target, data in graph.edges(data=True):
-            edge = EdgeItem(self.nodes[source], self.nodes[target], data["weight"])
-            self.scene().addItem(edge)
-            self.edges[source, target] = edge
+        self.set_graph(graph, positions)
+        self.scene().selectionChanged.connect(self._selection_changed)
+
+    def set_graph(self, graph: nx.Graph, positions: PositionMap) -> None:
+        self.graph = graph
+        with QSignalBlocker(self.scene()):
+            for edge in self.edges.values():
+                edge.source.position_changed.disconnect(edge.update_position)
+                edge.target.position_changed.disconnect(edge.update_position)
+            self.edges.clear()
+            self.nodes.clear()
+            self.scene().clear()
+            for node in sorted(graph):
+                item = NodeItem(node)
+                self.scene().addItem(item)
+                item.setPos(*positions[node])
+                item.movement_finished.connect(self._movement_finished)
+                self.nodes[node] = item
+            for source, target, data in graph.edges(data=True):
+                edge = EdgeItem(self.nodes[source], self.nodes[target], data["weight"])
+                self.scene().addItem(edge)
+                self.edges[source, target] = edge
         self._update_scene_rect()
+
+    def _selection_changed(self) -> None:
+        selected = self.scene().selectedItems()
+        if len(selected) == 1 and isinstance(selected[0], NodeItem):
+            self.node_selected.emit(selected[0].node_id)
 
     def positions(self) -> PositionMap:
         return {node: (item.pos().x(), item.pos().y()) for node, item in self.nodes.items()}

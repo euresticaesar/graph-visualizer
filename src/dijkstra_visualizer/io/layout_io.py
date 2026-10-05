@@ -15,9 +15,11 @@ def load_layout(path: Path, graph: nx.Graph) -> PositionMap:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (ValueError, UnicodeError) as error:
-            raise ValueError(f"{path.name}: invalid JSON layout: {error}") from error
+            raise ValueError(f"{path.name}: JSON de posiciones no válido: {error}") from error
         if not isinstance(data, dict):
-            raise ValueError(f"{path.name}: layout must be an object keyed by node ID.")
+            raise ValueError(
+                f"{path.name}: las posiciones deben estar en un objeto con los ID como claves."
+            )
         for key, point in data.items():
             try:
                 node = int(key)
@@ -32,13 +34,15 @@ def load_layout(path: Path, graph: nx.Graph) -> PositionMap:
                 ):
                     raise ValueError
             except (ValueError, TypeError, KeyError, OverflowError) as error:
-                raise ValueError(f"{path.name}: invalid position for node {key!r}.") from error
+                raise ValueError(
+                    f"{path.name}: posición no válida para el nodo {key!r}."
+                ) from error
             if node in graph:
                 positions[node] = (float(x), float(y))
 
     missing = set(graph) - positions.keys()
     if missing:
-        # Keep stored positions fixed; only place nodes that have no coordinates.
+        # Conserva las posiciones guardadas; ubica solo los nodos sin coordenadas.
         radius = max(300, 35 * len(graph))
         for index, node in enumerate(sorted(graph)):
             if node in missing:

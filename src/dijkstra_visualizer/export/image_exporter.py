@@ -26,7 +26,7 @@ def render_scene(
 ) -> QImage:
     image = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
     if image.isNull():
-        raise ValueError("The export image is too large to allocate.")
+        raise ValueError("No hay memoria suficiente para generar la imagen.")
     image.fill(QColor("#f8fafc"))
     painter = QPainter(image)
     try:
@@ -58,8 +58,8 @@ def render_scene(
         painter.drawText(
             QRectF(32, height - 38, width - 64, 25),
             Qt.AlignmentFlag.AlignLeft,
-            "[distance, predecessor]  ·  Yellow: tentative  ·  Green: visited  ·  "
-            "Red border: target  ·  Teal edges: shortest path",
+            "[distancia, predecesor]  ·  Amarillo: tentativo  ·  Verde: visitado  ·  "
+            "Borde rojo: destino  ·  Conexiones turquesa: ruta mínima",
         )
     finally:
         painter.end()
@@ -68,28 +68,28 @@ def render_scene(
 
 def save_image(image: QImage, path: Path) -> None:
     if not image.save(str(path), "PNG"):
-        raise OSError(f"Could not write image to {path}.")
+        raise OSError(f"No se pudo guardar la imagen en {path}.")
 
 
 def _detail(state: DijkstraState, start: int, target: int, final: bool) -> str:
     detail = (
-        f"Start: {start}   Target: {target}   Current: "
+        f"Inicio: {start}   Destino: {target}   Actual: "
         f"{state.current_node if state.current_node is not None else '—'}   "
-        f"Settled nodes: {len(state.visited)}\n"
+        f"Nodos visitados: {len(state.visited)}\n"
     )
     if final:
         path = reconstruct_path(state, start, target)
         if not path:
-            return detail + "Target unreachable — no reachable unvisited nodes remain."
+            return detail + "No hay ruta al destino: ya no quedan nodos alcanzables sin visitar."
         return (
             detail
-            + f"Shortest distance: {format_distance(state.distances[target])}   Path: "
+            + f"Distancia mínima: {format_distance(state.distances[target])}   Ruta: "
             + (" → ".join(map(str, path)))
         )
     if state.current_node is None:
-        return detail + "Initial labels: the start distance is 0; every other distance is ∞."
-    updated = ", ".join(map(str, sorted(state.updated_nodes))) or "none"
-    return detail + f"Settled node {state.current_node}; improved labels: {updated}."
+        return detail + "Etiquetas iniciales: la distancia de inicio es 0; las demás son ∞."
+    updated = ", ".join(map(str, sorted(state.updated_nodes))) or "ninguna"
+    return detail + f"Nodo visitado: {state.current_node}; etiquetas mejoradas: {updated}."
 
 
 def export_graph(
@@ -103,13 +103,13 @@ def export_graph(
     output_dir: Path,
 ) -> Path:
     if not states or not 0 <= index < len(states):
-        raise ValueError("Initialize Dijkstra before exporting a phase.")
+        raise ValueError("Inicia Dijkstra antes de exportar un paso.")
     if kind not in {"current", "all", "combined", "final"}:
-        raise ValueError(f"Unknown export type: {kind}.")
+        raise ValueError(f"Tipo de exportación desconocido: {kind}.")
     view = GraphView(graph, positions)
     view.set_editable(False)
     try:
-        # Use one shared extent, including every label, so phases align in exports.
+        # Usa los mismos límites, incluidas las etiquetas, para alinear todos los pasos.
         bounds = QRectF()
         for state in states:
             view.apply_state(state, start, target)
@@ -123,7 +123,7 @@ def export_graph(
             return render_scene(
                 view.scene(),
                 bounds,
-                f"Dijkstra · Step {state.step} / {len(states) - 1}",
+                f"Dijkstra · Paso {state.step} / {len(states) - 1}",
                 _detail(state, start, target, final),
                 width,
                 height,

@@ -37,7 +37,7 @@ def test_invalid_edges(tmp_path, edge):
 
 
 def test_duplicate_undirected_edge(tmp_path):
-    with pytest.raises(ValueError, match="duplicate"):
+    with pytest.raises(ValueError, match="duplicada"):
         load_graph(*write_graph(tmp_path, edges="source,target,weight\n1,2,1\n2,1,2\n"))
 
 

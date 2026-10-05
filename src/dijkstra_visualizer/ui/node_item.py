@@ -85,16 +85,16 @@ class NodeItem(QGraphicsObject):
         self.label.setFont(font)
         self.label.setPos(-self.label.boundingRect().width() / 2, 35)
         state = (
-            "current"
+            "actual"
             if current
-            else "visited"
+            else "visitado"
             if visited
-            else ("tentative" if math.isfinite(distance) else "unreached")
+            else ("tentativo" if math.isfinite(distance) else "sin alcanzar")
         )
-        roles = (["START"] if start else []) + (["TARGET"] if target else [])
+        roles = (["INICIO"] if start else []) + (["DESTINO"] if target else [])
         self.caption.setText(" · ".join([*roles, state]))
         self.caption.setPos(-self.caption.boundingRect().width() / 2, -53)
-        self.setToolTip(f"Node {self.node_id} — {self.caption.text()}\n{self.label.text()}")
+        self.setToolTip(f"Nodo {self.node_id} — {self.caption.text()}\n{self.label.text()}")
         self.update()
 
     def itemChange(self, change, value):

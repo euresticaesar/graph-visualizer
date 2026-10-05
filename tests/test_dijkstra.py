@@ -93,7 +93,7 @@ def test_ties_are_deterministic():
 
 @pytest.mark.parametrize("weight", [0, -1, math.inf, math.nan, "2", True, None])
 def test_rejects_invalid_weights(weight):
-    with pytest.raises(ValueError, match="weight"):
+    with pytest.raises(ValueError, match="peso"):
         dijkstra_steps(weighted_graph([(1, 2, weight)]), 1, 2)
 
 

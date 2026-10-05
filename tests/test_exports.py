@@ -19,7 +19,7 @@ def test_all_export_actions_preserve_live_view(window):
     saved_layout = (window.data_dir / "layout.json").read_bytes()
     for action in window.export_actions:
         action.trigger()
-        assert "Export completed" in window.statusBar().currentMessage()
+        assert "Exportación completada" in window.statusBar().currentMessage()
         assert window.state_index == 3
         assert window.graph_view.positions() == positions
         assert window.graph_view.transform() == transform
@@ -70,7 +70,7 @@ def test_export_failure_is_reported(window, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: messages.append(args[2]))
     window.export("current")
     assert messages
-    assert window.statusBar().currentMessage() == "Export failed"
+    assert window.statusBar().currentMessage() == "No se pudo exportar"
     assert window.state_index == 0
 
 
@@ -85,7 +85,7 @@ def test_open_output_folder_uses_local_url(window, monkeypatch):
 
 def test_png_write_failure(tmp_path, qapp):
     image = QImage(10, 10, QImage.Format.Format_RGB32)
-    with pytest.raises(OSError, match="Could not write"):
+    with pytest.raises(OSError, match="No se pudo guardar"):
         save_image(image, tmp_path / "missing" / "image.png")
 
 
@@ -101,5 +101,19 @@ def test_combined_single_phase_and_invalid_count(qapp):
 
 
 def test_combined_missing_image(qapp):
-    with pytest.raises(ValueError, match="valid phase"):
+    with pytest.raises(ValueError, match="paso válido"):
         combine_phases([], 1)
+
+
+def test_export_notice_persists_and_opens_actual_destination(window, monkeypatch):
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
+    window.initialize()
+    window.export_buttons[0].click()
+    assert window.export_notice.isVisible()
+    assert "Exportación completada" in window.export_notice_title.text()
+    assert window.export_notice_path.text() == str(window.last_export_path)
+    window.show_state(1)
+    assert window.export_notice.isVisible()
+    window.notice_open_button.click()
+    assert Path(opened[0].toLocalFile()) == window.last_export_path.parent
