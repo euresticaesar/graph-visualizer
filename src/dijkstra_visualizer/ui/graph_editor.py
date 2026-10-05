@@ -3,7 +3,6 @@ import math
 import networkx as nx
 from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -12,6 +11,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
 
 
 class GraphEditor(QWidget):
@@ -27,9 +28,9 @@ class GraphEditor(QWidget):
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 12, 0, 0)
         column.setSpacing(10)
-        self.node_combo = QComboBox()
+        self.node_combo = NodeComboBox()
         self.node_id = QLineEdit()
-        self.node_id.setPlaceholderText("Número entero positivo")
+        self.node_id.setPlaceholderText("Número entero desde 0")
         form = QFormLayout()
         form.addRow("Nodo seleccionado", self.node_combo)
         form.addRow("ID nuevo", self.node_id)
@@ -47,13 +48,14 @@ class GraphEditor(QWidget):
         column.addWidget(self.delete_button)
         self.add_button.clicked.connect(lambda: self._node_action(False))
         self.rename_button.clicked.connect(lambda: self._node_action(True))
+        self.node_id.returnPressed.connect(self.rename_button.click)
         self.delete_button.clicked.connect(
             lambda: self.delete_node_requested.emit(self.node_combo.currentData())
         )
         heading = QLabel("Conexiones y pesos")
         heading.setObjectName("section")
         column.addWidget(heading)
-        self.source_combo, self.target_combo = QComboBox(), QComboBox()
+        self.source_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         self.weight_input = QLineEdit("1")
         self.weight_input.setPlaceholderText("Ej. 4.5")
         edge_form = QFormLayout()
@@ -69,6 +71,7 @@ class GraphEditor(QWidget):
         column.addWidget(self.save_edge_button)
         column.addWidget(self.delete_edge_button)
         self.save_edge_button.clicked.connect(self._save_edge)
+        self.weight_input.returnPressed.connect(self.save_edge_button.click)
         self.delete_edge_button.clicked.connect(
             lambda: self.delete_edge_requested.emit(
                 self.source_combo.currentData(), self.target_combo.currentData()
@@ -111,10 +114,10 @@ class GraphEditor(QWidget):
     def _node_action(self, rename: bool) -> None:
         try:
             node = int(self.node_id.text())
-            if node <= 0:
+            if node < 0:
                 raise ValueError
         except ValueError:
-            self.error_label.setText("El ID debe ser un número entero mayor que cero.")
+            self.error_label.setText("El ID debe ser un número entero mayor o igual a cero.")
             return
         self.error_label.clear()
         if rename:

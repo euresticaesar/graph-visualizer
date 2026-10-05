@@ -1,9 +1,10 @@
+from pathlib import Path
+
 import networkx as nx
 import pytest
 
 from dijkstra_visualizer.io.graph_io import load_graph
 from dijkstra_visualizer.io.layout_io import load_layout, save_layout
-from dijkstra_visualizer.paths import DATA_DIR
 
 
 def write_graph(tmp_path, nodes="id\n1\n2\n3\n", edges="source,target,weight\n1,2,2.5\n"):
@@ -21,7 +22,7 @@ def test_load_graph(tmp_path):
     assert not graph.is_directed()
 
 
-@pytest.mark.parametrize("nodes", ["id\n1\n1\n", "id\n0\n", "id\na\n", "wrong\n1\n", "id\n"])
+@pytest.mark.parametrize("nodes", ["id\n1\n1\n", "id\n-1\n", "id\na\n", "wrong\n1\n", "id\n"])
 def test_invalid_nodes(tmp_path, nodes):
     with pytest.raises(ValueError):
         load_graph(*write_graph(tmp_path, nodes=nodes, edges="source,target,weight\n"))
@@ -47,10 +48,11 @@ def test_missing_graph_file(tmp_path):
 
 
 def test_sample_graph():
-    graph = load_graph(DATA_DIR / "nodes.csv", DATA_DIR / "edges.csv")
+    data_dir = Path(__file__).parent / "fixtures" / "sample"
+    graph = load_graph(data_dir / "nodes.csv", data_dir / "edges.csv")
     assert len(graph) == 12
     assert nx.is_connected(graph)
-    assert set(load_layout(DATA_DIR / "layout.json", graph)) == set(graph)
+    assert set(load_layout(data_dir / "layout.json", graph)) == set(graph)
 
 
 def test_layout_round_trip_and_missing_positions(tmp_path):
@@ -77,3 +79,25 @@ def test_invalid_layout(tmp_path, content):
     path.write_text(content)
     with pytest.raises(ValueError, match="layout.json"):
         load_layout(path, nx.path_graph([1, 2]))
+
+
+def test_load_zero_and_large_ids_with_layout(tmp_path):
+    large_id = 10**30
+    graph = load_graph(
+        *write_graph(
+            tmp_path,
+            nodes=f"id\n0\n{large_id}\n",
+            edges=f"source,target,weight\n0,{large_id},3\n",
+        )
+    )
+    assert set(graph) == {0, large_id}
+    positions = {0: (10, 20), large_id: (50, 100)}
+    path = tmp_path / "layout.json"
+    save_layout(path, positions)
+    assert load_layout(path, graph) == positions
+
+
+@pytest.mark.parametrize("node", ["-1", "0.5", "1.0"])
+def test_reject_invalid_csv_id(tmp_path, node):
+    with pytest.raises(ValueError, match="ID"):
+        load_graph(*write_graph(tmp_path, nodes=f"id\n{node}\n", edges="source,target,weight\n"))

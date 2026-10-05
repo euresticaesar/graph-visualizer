@@ -29,8 +29,10 @@ def _node_id(value: str, location: str) -> int:
         node = int(value)
     except ValueError as error:
         raise ValueError(f"{location}: ID de nodo no válido {value!r}.") from error
-    if node <= 0:
-        raise ValueError(f"{location}: los ID de los nodos deben ser enteros positivos.")
+    if node < 0:
+        raise ValueError(
+            f"{location}: los ID de los nodos deben ser enteros mayores o iguales a cero."
+        )
     return node
 
 

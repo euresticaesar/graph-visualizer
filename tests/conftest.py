@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -17,11 +18,10 @@ def qapp():
 
 @pytest.fixture
 def window(qapp, tmp_path):
-    from dijkstra_visualizer.paths import DATA_DIR
     from dijkstra_visualizer.ui.main_window import MainWindow
 
     data_dir = tmp_path / "data"
-    shutil.copytree(DATA_DIR, data_dir)
+    shutil.copytree(Path(__file__).parent / "fixtures" / "sample", data_dir)
     window = MainWindow(data_dir, tmp_path / "output")
     window.show()
     qapp.processEvents()

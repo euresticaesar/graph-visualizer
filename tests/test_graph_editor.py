@@ -188,3 +188,59 @@ def test_visible_actions_legend_and_exit(window):
     assert window.exit_button.text() == "Salir"
     QTest.mouseClick(window.exit_button, Qt.MouseButton.LeftButton)
     assert not window.isVisible()
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+def test_enter_renames_to_zero_and_saves_weight(window, key):
+    window.tabs.setCurrentIndex(1)
+    editor = window.editor
+    editor.node_combo.setCurrentIndex(editor.node_combo.findData(1))
+    editor.node_id.setText("0")
+    QTest.keyClick(editor.node_id, key)
+    assert 0 in window.graph and 1 not in window.graph
+    assert window.start == 0
+    editor.source_combo.setCurrentIndex(editor.source_combo.findData(0))
+    editor.target_combo.setCurrentIndex(editor.target_combo.findData(2))
+    editor.weight_input.setText("3.5")
+    QTest.keyClick(editor.weight_input, key)
+    assert window.graph[0][2]["weight"] == 3.5
+    assert_saved(window)
+    window.initialize()
+    window.show_state(1)
+    assert window.graph_view.nodes[2].label.text() == "[3.5, 0]"
+
+
+def test_large_id_can_be_added_selected_and_reloaded(window):
+    large_id = 10**30
+    window.editor.node_id.setText(str(large_id))
+    window.editor.add_button.click()
+    assert large_id in window.graph
+    assert window.editor.node_combo.currentData() == large_id
+    window.start_combo.setCurrentIndex(window.start_combo.findData(large_id))
+    assert window.start == large_id
+    assert_saved(window)
+    reopened = MainWindow(window.data_dir, window.output_dir)
+    try:
+        assert reopened.target_combo.currentData() == large_id
+        assert large_id in reopened.graph_view.nodes
+    finally:
+        reopened.close()
+
+
+@pytest.mark.parametrize("value", ["-1", "0.5", "1.0"])
+def test_enter_rejects_invalid_id_without_changing_graph(window, value):
+    original = window.graph.copy()
+    window.editor.node_id.setText(value)
+    QTest.keyClick(window.editor.node_id, Qt.Key.Key_Return)
+    assert window.editor.error_label.text()
+    assert nx.utils.graphs_equal(window.graph, original)
+    assert window.history_index == 0
+
+
+def test_enter_respects_disabled_save_connection_button(window):
+    editor = window.editor
+    editor.target_combo.setCurrentIndex(editor.source_combo.currentIndex())
+    assert not editor.save_edge_button.isEnabled()
+    editor.weight_input.setText("5")
+    QTest.keyClick(editor.weight_input, Qt.Key.Key_Return)
+    assert window.history_index == 0

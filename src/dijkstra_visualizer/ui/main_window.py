@@ -7,7 +7,6 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -32,6 +31,7 @@ from dijkstra_visualizer.io.layout_io import PositionMap, load_layout, save_layo
 from dijkstra_visualizer.paths import DATA_DIR, OUTPUT_DIR
 from dijkstra_visualizer.ui.graph_editor import GraphEditor
 from dijkstra_visualizer.ui.graph_view import GraphView
+from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
 from dijkstra_visualizer.ui.node_item import format_distance
 
 
@@ -88,12 +88,22 @@ class MainWindow(QMainWindow):
         return button
 
     @staticmethod
-    def _scroll_page(widget: QWidget) -> QScrollArea:
+    def _scroll_page(widget: QWidget) -> QFrame:
+        card = QFrame()
+        card.setObjectName("controlCard")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(12, 8, 12, 12)
         scroll = QScrollArea()
+        scroll.setObjectName("controlScroll")
+        scroll.viewport().setObjectName("controlViewport")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        widget.setObjectName("controlPage")
         scroll.setWidget(widget)
-        return scroll
+        widget.setAutoFillBackground(False)
+        scroll.viewport().setAutoFillBackground(False)
+        layout.addWidget(scroll)
+        return card
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -109,7 +119,6 @@ class MainWindow(QMainWindow):
         title = QLabel("Dijkstra")
         title.setObjectName("title")
         controls.addWidget(title)
-        controls.addWidget(QLabel("Fundamentos de IA · Rutas más cortas"))
         self.mode_label = QLabel()
         self.mode_label.setObjectName("mode")
         controls.addWidget(self.mode_label)
@@ -234,7 +243,7 @@ class MainWindow(QMainWindow):
         controls = QVBoxLayout(page)
         controls.setContentsMargins(0, 12, 4, 8)
         controls.setSpacing(10)
-        self.start_combo, self.target_combo = QComboBox(), QComboBox()
+        self.start_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         for node in sorted(self.graph):
             self.start_combo.addItem(f"Nodo {node}", node)
             self.target_combo.addItem(f"Nodo {node}", node)
@@ -294,7 +303,9 @@ class MainWindow(QMainWindow):
             }
             QToolButton#history { font-size: 20px; padding: 2px 8px; }
             QPushButton:hover, QToolButton:hover { background: #edf3f8; border-color: #94a3b8; }
-            QPushButton#primary { background: #0f766e; color: white; border-color: #0f766e; }
+            QPushButton#primary {
+                background: #0f766e; color: white; border-color: #0f766e; border-radius: 18px;
+            }
             QPushButton#primary:hover { background: #115e59; }
             QPushButton:disabled, QPushButton#primary:disabled, QToolButton:disabled,
             QComboBox:disabled, QLineEdit:disabled {
@@ -310,9 +321,27 @@ class MainWindow(QMainWindow):
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: transparent;
             }
+            QFrame#controlCard {
+                background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 16px;
+            }
+            QScrollArea#controlScroll, QWidget#controlViewport, QWidget#controlPage {
+                background: transparent; border: 0;
+            }
+            QWidget#controlPage QLabel { background: transparent; }
             QTabWidget::pane { border: 0; }
-            QTabBar::tab { padding: 9px 18px; background: #f1f5f9; }
-            QTabBar::tab:selected { background: #e1f4f0; color: #0f766e; }
+            QTabBar::tab {
+                padding: 9px 18px; background: #f1f5f9; border: 1px solid #cbd5e1;
+                min-width: 100px; margin-bottom: 8px;
+            }
+            QTabBar::tab:first {
+                border-top-left-radius: 19px; border-bottom-left-radius: 19px;
+                border-right: 0;
+            }
+            QTabBar::tab:last {
+                border-top-right-radius: 19px; border-bottom-right-radius: 19px;
+            }
+            QTabBar::tab:selected { background: #d6eee8; color: #0f766e; }
+            QTabBar::tab:disabled { color: #94a3b8; background: #f1f5f9; }
         """)
 
     def _snapshot(self, description: str) -> EditSnapshot:
@@ -433,8 +462,8 @@ class MainWindow(QMainWindow):
     def add_node(self, node: int) -> bool:
         if self.states:
             return False
-        if type(node) is not int or node <= 0 or node in self.graph:
-            self.editor.error_label.setText("Usa un ID positivo que todavía no exista.")
+        if type(node) is not int or node < 0 or node in self.graph:
+            self.editor.error_label.setText("Usa un ID entero desde 0 que todavía no exista.")
             return False
         snapshot = self._snapshot(f"Agregar nodo {node}")
         snapshot.graph.add_node(node)
@@ -452,8 +481,10 @@ class MainWindow(QMainWindow):
     def rename_node(self, node: int, new_id: int) -> bool:
         if self.states:
             return False
-        if node not in self.graph or type(new_id) is not int or new_id <= 0 or new_id in self.graph:
-            self.editor.error_label.setText("Elige un nodo existente y un ID positivo disponible.")
+        if node not in self.graph or type(new_id) is not int or new_id < 0 or new_id in self.graph:
+            self.editor.error_label.setText(
+                "Elige un nodo existente y un ID entero desde 0 disponible."
+            )
             return False
         snapshot = self._snapshot(f"Cambiar ID de {node} a {new_id}")
         snapshot.graph = nx.relabel_nodes(snapshot.graph, {node: new_id}, copy=True)

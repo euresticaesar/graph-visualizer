@@ -9,8 +9,10 @@ def validate_graph(graph: nx.Graph) -> None:
     if not graph:
         raise ValueError("El grafo debe contener al menos un nodo.")
     for node in graph:
-        if type(node) is not int or node <= 0:
-            raise ValueError(f"Los ID de los nodos deben ser enteros positivos: {node!r}.")
+        if type(node) is not int or node < 0:
+            raise ValueError(
+                f"Los ID de los nodos deben ser enteros mayores o iguales a cero: {node!r}."
+            )
     for source, target, data in graph.edges(data=True):
         if source == target:
             raise ValueError(f"No se permiten conexiones de un nodo consigo mismo: nodo {source}.")

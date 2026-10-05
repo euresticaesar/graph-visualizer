@@ -142,3 +142,19 @@ def test_matches_networkx_reference(seed):
             )
         else:
             assert path == []
+
+
+def test_zero_and_large_node_ids():
+    large_id = 10**30
+    graph = weighted_graph([(0, 1, 2), (1, large_id, 3)])
+    final = dijkstra_steps(graph, 0, large_id)[-1]
+    assert final.distances[large_id] == 5
+    assert final.predecessors[1] == 0
+    assert reconstruct_path(final, 0, large_id) == [0, 1, large_id]
+    assert reconstruct_path(dijkstra_steps(graph, large_id, 0)[-1], large_id, 0) == [large_id, 1, 0]
+
+
+@pytest.mark.parametrize("node", [-1, 0.5, 1.0])
+def test_rejects_negative_and_decimal_node_ids(node):
+    with pytest.raises(ValueError, match="ID"):
+        dijkstra_steps(weighted_graph([(node, 2, 1)]), node, 2)

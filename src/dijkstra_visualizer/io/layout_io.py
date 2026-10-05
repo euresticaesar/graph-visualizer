@@ -23,7 +23,7 @@ def load_layout(path: Path, graph: nx.Graph) -> PositionMap:
         for key, point in data.items():
             try:
                 node = int(key)
-                if node <= 0 or str(node) != key or not isinstance(point, dict):
+                if node < 0 or str(node) != key or not isinstance(point, dict):
                     raise ValueError
                 x, y = point["x"], point["y"]
                 if any(
