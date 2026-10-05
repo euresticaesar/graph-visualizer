@@ -48,3 +48,44 @@ def test_invalid_edit_does_not_touch_files(tmp_path):
     with pytest.raises(ValueError):
         save_graph_data(tmp_path, graph, positions)
     assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before
+
+
+def test_backup_is_preserved_if_rollback_also_fails(tmp_path, monkeypatch):
+    first, second = tmp_path / "nodes", tmp_path / "edges"
+    files.atomic_write_files({first: "original nodes", second: "original edges"})
+    original_replace = files.os.replace
+    calls = 0
+
+    def fail_after_first_replace(source, target):
+        nonlocal calls
+        calls += 1
+        if calls >= 2:
+            raise OSError("Disk failure")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(files.os, "replace", fail_after_first_replace)
+    with pytest.raises(OSError, match="Copia anterior") as error:
+        files.atomic_write_files({first: "new nodes", second: "new edges"})
+    recovery = set(tmp_path.iterdir()) - {first, second}
+    assert len(recovery) == 1
+    backup = recovery.pop()
+    assert backup.read_text() == "original nodes"
+    assert str(backup) in str(error.value)
+    assert second.read_text() == "original edges"
+
+
+def test_new_files_are_removed_if_partial_save_fails(tmp_path, monkeypatch):
+    original_replace = files.os.replace
+    calls = 0
+
+    def fail_second_replace(source, target):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("Disk error")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(files.os, "replace", fail_second_replace)
+    with pytest.raises(OSError):
+        files.atomic_write_files({tmp_path / "nodes": "nodes", tmp_path / "edges": "edges"})
+    assert list(tmp_path.iterdir()) == []

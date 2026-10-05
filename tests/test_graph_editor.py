@@ -175,7 +175,7 @@ def test_failed_undo_keeps_history_and_graph(window, monkeypatch):
     window.undo()
     assert window.history_index == original_index
     assert 13 in window.graph
-    assert "No se aplicó el cambio" in warnings[0]
+    assert "No se pudo guardar el cambio" in warnings[0]
     assert {path: path.read_bytes() for path in window.data_dir.iterdir()} == before
 
 

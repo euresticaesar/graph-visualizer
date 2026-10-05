@@ -7,15 +7,18 @@ def atomic_write_files(contents: dict[Path, str]) -> None:
     staged: dict[Path, Path] = {}
     backups: dict[Path, Path | None] = {}
     replaced: list[Path] = []
+    recovery_files: set[Path] = set()
 
     def stage(path: Path, data: bytes) -> Path:
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            try:
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
                 stream.write(data)
-            except OSError:
+        except OSError:
+            if temporary is not None:
                 temporary.unlink(missing_ok=True)
-                raise
+            raise
         return temporary
 
     try:
@@ -27,15 +30,26 @@ def atomic_write_files(contents: dict[Path, str]) -> None:
         for path, temporary in staged.items():
             os.replace(temporary, path)
             replaced.append(path)
-    except OSError:
+    except OSError as error:
         # Si falla un reemplazo, recupera los archivos que ya se habían cambiado.
+        failures = []
         for path in reversed(replaced):
-            if backups[path] is None:
-                path.unlink(missing_ok=True)
-            else:
-                os.replace(backups[path], path)
+            backup = backups[path]
+            try:
+                if backup is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(backup, path)
+            except OSError:
+                if backup is not None:
+                    recovery_files.add(backup)
+                failures.append(f"{path}. Copia anterior: {backup or 'archivo nuevo'}")
+        if failures:
+            raise OSError(
+                "No se pudieron restaurar estos archivos:\n" + "\n".join(failures)
+            ) from error
         raise
     finally:
         for temporary in [*staged.values(), *backups.values()]:
-            if temporary is not None:
+            if temporary is not None and temporary not in recovery_files:
                 temporary.unlink(missing_ok=True)

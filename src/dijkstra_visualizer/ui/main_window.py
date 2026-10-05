@@ -355,7 +355,9 @@ class MainWindow(QMainWindow):
                 save_layout(self.data_dir / "layout.json", snapshot.positions)
         except (OSError, ValueError) as error:
             self._restore(current)
-            QMessageBox.warning(self, "No se pudo guardar", f"No se aplicó el cambio.\n{error}")
+            QMessageBox.warning(
+                self, "No se pudo guardar", f"No se pudo guardar el cambio.\n{error}"
+            )
             return False
         self._restore(snapshot)
         return True

@@ -122,7 +122,7 @@ def test_failed_layout_save_restores_positions_and_history(window, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
     window.graph_view.nodes[1].setPos(200, 150)
     window._save_layout()
-    assert "No se aplicó el cambio" in warnings[0]
+    assert "No se pudo guardar el cambio" in warnings[0]
     assert window.graph_view.positions() == original
     assert window.history_index == history_index
     assert (window.data_dir / "layout.json").read_bytes() == layout
