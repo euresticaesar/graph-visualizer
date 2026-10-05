@@ -1,7 +1,7 @@
 [project]
 name = "dijkstra-visualizer"
 version = "0.1.0"
-description = "An interactive, step-by-step Dijkstra visualizer for Fundamentals of AI"
+description = "Visualizador interactivo del algoritmo de Dijkstra paso a paso"
 readme = "README.md"
 authors = [
     { name = "César Euresti", email = "euresti.mgmt@gmail.com" }

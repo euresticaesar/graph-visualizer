@@ -1,169 +1,217 @@
-# Dijkstra Visualizer
+# Visualizador de Dijkstra
 
-An educational desktop application for **Fundamentals of AI**. Explore Dijkstra's
-shortest-path algorithm on a weighted, undirected graph, one iteration at a time.
-The included 12-node example has competing routes and is ready to run.
+Aplicación de escritorio para explorar el algoritmo de Dijkstra paso a paso sobre
+un grafo no dirigido con pesos positivos. Permite editar el grafo, revisar las
+distancias calculadas y exportar imágenes del recorrido.
 
-Built with Python 3.12+, uv, PySide6 / Qt 6, and NetworkX. Tests use pytest and Qt's
-own interaction tools; Ruff handles linting and formatting.
+Usa **Python 3.12+, uv, PySide6 / Qt 6 y NetworkX**. Las pruebas se ejecutan con
+pytest; Ruff revisa el código y aplica el formato.
 
-## Run
+## Ejecución
 
-From this checkout, with uv installed:
+Con uv instalado, ejecuta desde la carpeta del proyecto:
 
 ```sh
 uv sync
 uv run dijkstra-visualizer
 ```
 
-`uv run python -m dijkstra_visualizer` also works. A graphical desktop is required
-for normal use. From another directory, point uv at the checkout:
+También puedes usar `uv run python -m dijkstra_visualizer`. Para iniciar desde
+otra carpeta:
 
 ```sh
-uv run --project /path/to/dijkstra-visualizer dijkstra-visualizer
+uv run --project /ruta/al/dijkstra-visualizer dijkstra-visualizer
 ```
 
-Data and output paths are resolved relative to the source checkout, independent
-of the shell's current directory. Keep the `data/` directory with the project;
-a standalone packaged installer is not provided.
+La aplicación necesita un entorno gráfico. Las rutas de datos y exportaciones
+se resuelven desde el código del proyecto, no desde la carpeta de la terminal.
+Conserva `data/` junto al proyecto; todavía no hay un instalador independiente.
 
-## Use
+## Uso
 
-The interface, export captions, errors, and source comments are in Mexican Spanish.
-Code identifiers and CSV headers remain in English. All controls are in the main
-window; there is no menu bar.
+El selector **Recorrido / Editar grafo** tiene forma de píldora dividida. Los
+controles están en un panel redondeado; no hay barra de menús.
 
-1. In **MODO EDICIÓN**, drag nodes to arrange the graph. Connections follow
-   immediately; positions are saved when you release the mouse.
-2. In **Recorrido**, select **Nodo de inicio** and **Nodo de destino**, then click
-   **Iniciar Dijkstra**. Use **Siguiente** and **Anterior** to browse stored phases.
-   **Volver a editar** clears the run and keeps the graph and edit history.
-3. In **Editar grafo**, use **ID nuevo** to add a node or rename the selected one.
-   **Eliminar nodo seleccionado** also removes its connections. At least one node
-   must remain. Clicking a node on the canvas selects it in the editor.
-4. Choose **Desde**, **Hasta**, and a positive **Peso**, then **Guardar conexión**
-   to create an edge or change its weight. Use a decimal point, for example `2.5`.
-   **Eliminar conexión** removes the selected edge.
-5. Export with the buttons below the graph. **Abrir carpeta** opens the output
-   directory; **Salir** closes the application.
+1. En **MODO EDICIÓN**, arrastra los nodos para acomodarlos. Las conexiones y sus
+   pesos se mueven al mismo tiempo. Las posiciones se guardan al soltar el mouse.
+2. En **Recorrido**, selecciona **Nodo de inicio** y **Nodo de destino** y pulsa
+   **Iniciar Dijkstra**. Usa **Siguiente** y **Anterior** para revisar los pasos.
+3. **Volver a editar** termina la visualización y conserva el grafo, las posiciones
+   y el historial de edición.
+4. Los botones debajo del grafo exportan imágenes. **Abrir carpeta** muestra las
+   exportaciones y **Salir** cierra la aplicación.
 
-Graph edits save automatically. **↶ / ↷**, beside **Ajustar vista**, undo or redo
-node movements, additions, deletions, ID changes, edge changes, and start/target
-selections. A drag counts as one action. Up to 100 actions are kept for the current
-session; a new edit after undo clears the redo branch. Algorithm mode locks edits
-and undo/redo. Undoing a data edit also updates the saved files.
+### Edición del grafo
 
-| Shortcut / gesture | Action |
+En **Editar grafo** puedes:
+
+- Escribir un **ID nuevo** y pulsar **Agregar nodo**.
+- Seleccionar un nodo y pulsar **Cambiar ID** para renombrarlo. Enter en **ID nuevo**
+  realiza esta misma acción; no agrega otro nodo.
+- Usar **Eliminar nodo seleccionado** para borrar un nodo y sus conexiones.
+  El grafo debe conservar al menos un nodo.
+- Elegir **Desde**, **Hasta** y un **Peso**, y pulsar **Guardar conexión** para
+  crear una conexión o modificar su peso. Enter en **Peso** también la guarda.
+- Pulsar **Eliminar conexión** para quitar la conexión seleccionada.
+
+Los ID son enteros desde **0**, sin un máximo definido por la aplicación.
+No se permiten ID negativos, decimales ni duplicados. Los pesos deben ser números
+positivos y finitos; pueden tener decimales, por ejemplo `2.5`.
+
+Al hacer clic en un nodo del grafo, también se selecciona en el editor. Los cambios
+se guardan automáticamente. Durante el recorrido se bloquea la edición.
+
+### Deshacer, rehacer y navegación
+
+Las flechas **↶ / ↷**, junto a **Ajustar vista**, permiten deshacer y rehacer
+movimientos, cambios de ID, altas y bajas de nodos, cambios en conexiones y
+selecciones de inicio o destino. Cada arrastre cuenta como una sola acción.
+
+El historial conserva hasta 100 acciones durante la sesión. Una edición nueva
+después de deshacer descarta las acciones pendientes de rehacer. Al deshacer o
+rehacer un cambio del grafo también se actualizan los archivos guardados.
+
+| Atajo o gesto | Acción |
 | --- | --- |
-| `Ctrl+Z` / `Ctrl+Y` (also `Ctrl+Shift+Z`) | Undo / redo graph edits |
-| `Ctrl+0` | Fit the graph |
-| `Ctrl+Q` | Exit |
-| Background drag / mouse wheel | Pan / zoom |
+| `Ctrl+Z` | Deshacer |
+| `Ctrl+Y` o `Ctrl+Shift+Z` | Rehacer |
+| `Ctrl+0` | Ajustar el grafo a la vista |
+| `Ctrl+Q` | Salir |
+| Arrastrar el fondo | Desplazar la vista |
+| Rueda del mouse | Acercar o alejar |
+| Enter en **ID nuevo** | Cambiar el ID del nodo seleccionado |
+| Enter en **Peso** | Guardar la conexión |
 
-Every node shows `[distancia, predecesor]`, keeping the classroom symbols `∞` and
-`null`. Gray means unreached, yellow means tentative, and green means visited.
-The current node has a dark fill and dashed ring. Captions identify the start and
-node state; the target keeps its red border. Bold labels indicate improvements in
-the current step. Teal edges highlight the final path. The legend uses two columns.
+### Etiquetas y colores
 
-## How the algorithm works
+Cada nodo muestra `[distancia, predecesor]`. Se usa `∞` para una distancia todavía
+no conocida y `null` cuando no hay predecesor.
 
-Dijkstra is implemented by this project in `core/dijkstra.py`; application logic
-does **not** call NetworkX's shortest-path algorithms. NetworkX stores the graph
-and serves as an independent reference in tests.
+| Apariencia | Significado |
+| --- | --- |
+| Gris | Nodo sin alcanzar |
+| Amarillo | Distancia tentativa |
+| Verde | Nodo visitado; su distancia ya es definitiva |
+| Verde oscuro y aro discontinuo | Nodo actual |
+| Borde rojo | Nodo de destino |
+| Conexiones turquesa | Ruta mínima final |
+| Etiqueta en negritas | Distancia mejorada en ese paso |
 
-Step 0 sets the start distance to zero and all others to infinity. Each subsequent
-step selects the smallest tentative distance, permanently visits that node, and
-relaxes its unvisited neighbors. Ties are resolved by node ID. Execution stops
-when the target is settled, before expanding it, or when the reachable nodes are
-exhausted. Labels on unvisited nodes may therefore remain tentative at completion.
+El inicio y el destino también tienen texto de identificación. La leyenda se
+organiza en dos columnas.
 
-Snapshots use immutable mappings and sets, so navigation never reruns the
-algorithm or changes earlier phases. The final path is reconstructed from the
-predecessors. Unreachable targets are reported explicitly. Choosing the same start
-and target is supported and produces a zero-distance path.
+## Funcionamiento de Dijkstra
 
-The default run, from 1 to 12, has distance **16** and path
-**1 → 5 → 6 → 7 → 11 → 12**.
+El proyecto implementa Dijkstra en `core/dijkstra.py`. **No utiliza las funciones
+de rutas mínimas de NetworkX para ejecutar el algoritmo**. NetworkX representa el
+grafo y se usa como referencia independiente en las pruebas.
 
-## Data files
+El paso 0 asigna distancia 0 al inicio e infinito al resto. Cada paso siguiente
+selecciona el nodo con menor distancia tentativa, lo marca como visitado y revisa
+si puede mejorar las distancias de sus vecinos no visitados. En caso de empate,
+se elige el ID menor.
 
-| File | Stores | Format |
+El recorrido termina cuando el destino queda visitado, antes de revisar sus
+vecinos, o cuando ya no quedan nodos alcanzables. Por eso, algunas distancias de
+nodos no visitados pueden seguir siendo tentativas al finalizar.
+
+Los estados son inmutables: avanzar o retroceder no vuelve a ejecutar Dijkstra ni
+modifica pasos anteriores. La ruta final se reconstruye con los predecesores.
+Si no existe una ruta, se indica en pantalla. El inicio y el destino pueden ser
+el mismo nodo; en ese caso, la distancia es 0.
+
+## Archivos de datos
+
+| Archivo | Contenido | Formato |
 | --- | --- | --- |
-| `data/nodes.csv` | Vertices, including isolated nodes | `id` header, one positive integer ID per row |
-| `data/edges.csv` | Weighted undirected edges | `source,target,weight` header, positive finite numeric weights |
-| `data/layout.json` | Visual positions only | Node ID strings mapped to `{"x": 220.0, "y": 160.0}` |
+| `data/nodes.csv` | Nodos, incluidos los aislados | Encabezado `id`; un entero desde 0 por fila |
+| `data/edges.csv` | Conexiones no dirigidas y pesos | Encabezado `source,target,weight` |
+| `data/layout.json` | Solo posiciones visuales | ID como texto y coordenadas `x`, `y` |
 
-Example CSV contents:
+Ejemplo de `nodes.csv`:
 
 ```csv
 id
+0
 1
 2
-3
 ```
+
+Ejemplo de `edges.csv`:
 
 ```csv
 source,target,weight
-1,2,7
-2,3,2.5
+0,1,7
+1,2,2.5
 ```
 
-An edge is listed only once: `1,2,7` also connects 2 to 1. Duplicate nodes or edges,
-self-loops, unknown endpoints, malformed records, and invalid weights are rejected
-with understandable errors. Invalid layouts are reported; absent layout files or
-missing positions receive deterministic fallback coordinates without moving nodes
-that already have saved positions. Layout saves use an atomic file replacement. Topology edits stage both CSV files
-and the layout before replacing them. Write failures trigger a rollback; if the
-rollback itself fails, recovery copies are retained and their paths are reported.
+Ejemplo de una posición en `layout.json`:
 
-Edit the CSV files while the application is closed and restart to load changes.
-Start/target selections and algorithm state are never written into the data files.
+```json
+{
+  "0": {"x": 220.0, "y": 160.0}
+}
+```
 
+Una conexión se escribe una sola vez: `0,1,7` conecta ambos nodos en las dos
+direcciones. Se rechazan duplicados, conexiones de un nodo consigo mismo,
+referencias a nodos inexistentes, registros mal formados y pesos no válidos.
 
-## Exports
+Si falta una posición, se genera una sin mover los nodos que ya tienen coordenadas.
+Un JSON dañado se reporta como error. El guardado prepara archivos temporales antes
+de reemplazar los originales. Si falla, intenta recuperar los archivos anteriores;
+si también falla esa recuperación, conserva las copias e indica sus rutas.
 
-After initialization, the export buttons below the graph provide:
+Para editar los CSV manualmente, cierra la aplicación y vuelve a abrirla al
+terminar. El inicio, el destino, los colores y los estados de Dijkstra no se
+persisten en estos archivos. El historial de edición tampoco se conserva al salir.
 
-- **Paso actual** → `current_step_05.png`, for example.
-- **Pasos separados** → `steps/step_00.png`, `step_01.png`, etc.
-- **Imagen conjunta** → `all_steps.png`, a grid with up to three columns.
-- **Ruta final** → `final_path.png`, even while viewing an earlier phase.
+## Exportaciones
 
-Each action creates a new timestamped directory inside `output/`, including
-microseconds to avoid overwrites. No file or directory prompt is required. A
-persistent, non-blocking success banner shows the image count and destination,
-with a button to open that export folder. There is also a status-bar confirmation
-and a desktop attention request. Dismiss the banner with **×**. The sidebar's
-**Abrir carpeta** opens the main output directory.
+Después de iniciar Dijkstra, están disponibles estas opciones:
 
-Exports render a separate Qt scene using the same graph coordinates, labels, and
-colors. They include step information, never application controls, and leave the
-live view untouched. Individual images are 1600 × 1100 pixels; combined images use
-1200 × 860 cells with shared graph extents. Resolution does not depend on window
-size. Very large combined images are rejected with a suggestion to export separate
-phases instead. Exports are synchronous and may briefly pause the UI on large graphs.
-Generated output is ignored by Git.
+| Botón | Resultado |
+| --- | --- |
+| **Paso actual** | `current_step_05.png`, por ejemplo |
+| **Pasos separados** | `steps/step_00.png`, `step_01.png`, etc. |
+| **Imagen conjunta** | `all_steps.png`, con hasta tres columnas |
+| **Ruta final** | `final_path.png`, aunque estés viendo un paso anterior |
 
-## Project structure
+Cada exportación crea una carpeta con fecha, hora y microsegundos dentro de
+`output/`. No se solicita un nombre ni una ubicación. Al terminar aparece un aviso
+persistente con la cantidad de imágenes, la ruta y un botón para abrir esa carpeta.
+También se muestra una confirmación en la barra de estado. Puedes cerrar el aviso
+con **×**. El botón lateral **Abrir carpeta** abre la carpeta general `output/`.
+
+Las imágenes se generan desde una escena de Qt independiente, con las mismas
+posiciones y etiquetas. Incluyen información del paso, pero no botones ni otros
+controles de la ventana. Exportar no cambia el paso que estás viendo.
+
+Las imágenes individuales tienen 1600 × 1100 píxeles; la imagen conjunta usa celdas
+de 1200 × 860. Su resolución no depende del tamaño de la ventana. Si una imagen
+conjunta sería demasiado grande, se solicita exportar los pasos por separado.
+La exportación puede pausar brevemente la interfaz en grafos grandes. Git ignora
+los archivos generados en `output/`.
+
+## Estructura del proyecto
 
 ```text
 src/dijkstra_visualizer/
-├── core/       # Graph validation, immutable states, manual Dijkstra
-├── io/         # CSV loading and layout persistence
-├── ui/         # Qt window, graph editor, scene, node and edge items
-├── export/     # Scene rendering and combined images
-└── paths.py    # Source-checkout data and output locations
-data/           # Demonstration graph and saved layout
-tests/          # Algorithm, IO, Qt interaction, and export checks
-output/         # Generated images (ignored)
+├── core/       # Validación, estados inmutables y Dijkstra
+├── io/         # Lectura y guardado del grafo y las posiciones
+├── ui/         # Ventana, editor, escena y elementos gráficos
+├── export/     # Generación de imágenes individuales y conjuntas
+└── paths.py    # Rutas de datos y exportaciones
+data/           # Grafo y posiciones guardadas
+tests/          # Pruebas y datos de ejemplo independientes
+output/         # Imágenes generadas; no se incluyen en Git
 ```
 
-The core has no Qt dependency. The UI consumes precomputed states, and persistence
-contains no algorithm logic. The renderer uses `QGraphicsScene` / `QGraphicsView`,
-with movable node items and connected edge items.
+El núcleo no depende de Qt. La interfaz recibe los estados calculados y la capa
+de archivos no contiene lógica del algoritmo. El grafo se dibuja con
+`QGraphicsScene` y `QGraphicsView`.
 
-## Development checks
+## Pruebas y revisión del código
 
 ```sh
 uv run pytest
@@ -171,30 +219,31 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-To apply formatting, use `uv run ruff format .`. Tests cover graph validation,
-shortest paths, predecessors, disconnected graphs, snapshot immutability,
-NetworkX reference comparisons, graph editing, persisted undo/redo, write-failure
-recovery, mouse interaction, layout restoration, and export notifications. Qt tests
-run offscreen and use temporary data/output folders; they do not alter your graph.
+Para aplicar el formato: `uv run ruff format .`.
 
-## Linux desktop messages
+Las pruebas cubren el algoritmo, la validación de datos, los ID desde 0 y mayores
+de 64 bits, la edición, Enter en los campos, deshacer y rehacer, errores de guardado,
+arrastres y exportaciones. Las pruebas de interacción usan un grafo fijo en
+`tests/fixtures/sample/` y carpetas temporales; no alteran tu grafo. Las pruebas de
+Qt se ejecutan sin mostrar ventanas mediante la plataforma `offscreen`.
 
-`This plugin supports grabbing the mouse only for popup windows` originates in
-[Qt's Wayland platform integration](https://github.com/qt/qtbase/blob/dev/src/plugins/platforms/wayland/qwaylandwindow.cpp).
-If input is affected and XWayland is installed, an optional per-launch workaround is:
+## Mensajes del escritorio en Linux
+
+El mensaje `This plugin supports grabbing the mouse only for popup windows` se
+origina en la [integración de Qt con Wayland](https://github.com/qt/qtbase/blob/dev/src/plugins/platforms/wayland/qwaylandwindow.cpp).
+Si afecta la interacción y tienes XWayland instalado, puedes iniciar así:
 
 ```sh
 QT_QPA_PLATFORM=xcb uv run dijkstra-visualizer
 ```
 
-This uses Qt's X11 backend without changing desktop settings. Native Wayland remains
-the default when selected by your environment. See [Qt's platform documentation](https://doc.qt.io/qt-6/qguiapplication.html#platformName-prop).
+Esto selecciona el backend X11 de Qt para esa ejecución, sin cambiar la
+configuración del escritorio. Consulta la [documentación de plataformas de Qt](https://doc.qt.io/qt-6/qguiapplication.html#platformName-prop).
 
-`WARNING: Glycin running without sandbox` comes from the desktop's
-[Glycin image-loading library](https://github.com/GNOME/glycin#sandboxing-and-inner-workings).
-The application does not use Glycin directly; desktop theme or file-manager image
-loading is a possible source. The warning was not reproduced during application
-startup and export checks. It is not evidence of a failed Dijkstra calculation or
-PNG export. No sandbox protections are disabled and no warnings are suppressed.
+El mensaje `WARNING: Glycin running without sandbox` proviene de la biblioteca de
+[carga de imágenes Glycin](https://github.com/GNOME/glycin#sandboxing-and-inner-workings).
+La aplicación no la usa directamente; el tema del escritorio o el explorador de
+archivos podrían generarlo. No se reprodujo durante las pruebas de inicio y
+exportación. No se desactivan protecciones del sistema ni se ocultan advertencias.
 
-Possible future additions include automatic playback and a packaged desktop installer.
+Posibles mejoras futuras: reproducción automática y un instalador de escritorio.

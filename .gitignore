@@ -1,4 +1,4 @@
-# Python-generated files
+# Archivos generados por Python
 __pycache__/
 *.py[oc]
 build/
@@ -6,12 +6,12 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Entornos virtuales
 .venv
 
-# Generated exports
+# Imágenes exportadas
 output/
 
-# Tool caches
+# Cachés de herramientas
 .pytest_cache/
 .ruff_cache/
