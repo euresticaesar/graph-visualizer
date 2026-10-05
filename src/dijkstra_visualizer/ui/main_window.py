@@ -301,6 +301,14 @@ class MainWindow(QMainWindow):
         if self.layout_dirty:
             self._save_layout()
             if self.layout_dirty:
-                event.ignore()
-                return
+                answer = QMessageBox.question(
+                    self,
+                    "Unsaved layout",
+                    "The layout could not be saved. Close and discard the unsaved positions?",
+                    QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Cancel,
+                )
+                if answer != QMessageBox.StandardButton.Discard:
+                    event.ignore()
+                    return
         super().closeEvent(event)

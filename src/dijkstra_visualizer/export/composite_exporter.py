@@ -9,7 +9,9 @@ def combine_phases(images: Iterable[QImage], count: int) -> QImage:
     if count < 1:
         raise ValueError("A combined image needs at least one phase.")
     iterator = iter(images)
-    first = next(iterator)
+    first = next(iterator, None)
+    if first is None or first.isNull():
+        raise ValueError("A combined image needs at least one valid phase image.")
     columns = min(3, math.ceil(math.sqrt(count)))
     rows = math.ceil(count / columns)
     gap = 20

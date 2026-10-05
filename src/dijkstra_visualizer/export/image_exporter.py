@@ -47,12 +47,11 @@ def render_scene(
             Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
             detail,
         )
-        scene.render(
-            painter,
-            QRectF(28, 154, width - 56, height - 208),
-            source_rect,
-            Qt.AspectRatioMode.KeepAspectRatio,
-        )
+        area = QRectF(28, 154, width - 56, height - 208)
+        scale = min(area.width() / source_rect.width(), area.height() / source_rect.height())
+        target = QRectF(0, 0, source_rect.width() * scale, source_rect.height() * scale)
+        target.moveCenter(area.center())
+        scene.render(painter, target, source_rect, Qt.AspectRatioMode.KeepAspectRatio)
         font.setPixelSize(15)
         painter.setFont(font)
         painter.setPen(QColor("#526179"))

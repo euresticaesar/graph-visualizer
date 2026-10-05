@@ -98,3 +98,8 @@ def test_combined_single_phase_and_invalid_count(qapp):
         combine_phases([], 0)
     with pytest.raises(ValueError):
         combine_phases([image], 2)
+
+
+def test_combined_missing_image(qapp):
+    with pytest.raises(ValueError, match="valid phase"):
+        combine_phases([], 1)

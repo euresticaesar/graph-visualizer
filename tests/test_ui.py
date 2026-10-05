@@ -84,3 +84,45 @@ def test_background_drag_pans(window):
     QTest.mouseMove(view.viewport(), QPoint(70, 55))
     QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(70, 55))
     assert view.mapToScene(view.viewport().rect().center()) != old_center
+
+
+def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "nodes.csv").write_text("id\n1\n2\n3\n")
+    (data / "edges.csv").write_text("source,target,weight\n1,2,4\n")
+    window = MainWindow(data, tmp_path / "output")
+    try:
+        window.initialize()
+        window.show_state(len(window.states) - 1)
+        assert "unreachable" in window.detail_label.text()
+        assert window.graph_view.nodes[3].label.text() == "[∞, null]"
+        assert window.graph_view.nodes[3].is_target
+        assert all(edge.pen().widthF() == 2 for edge in window.graph_view.edges.values())
+        window.export("final")
+        assert len(list(window.output_dir.glob("*/final_path.png"))) == 1
+    finally:
+        window.close()
+
+
+def test_failed_layout_save_allows_cancel_or_discard(window, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from dijkstra_visualizer.ui import main_window
+
+    warnings = []
+
+    def failed_save(*args):
+        raise OSError("Read-only directory")
+
+    monkeypatch.setattr(main_window, "save_layout", failed_save)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
+    window.graph_view.nodes[1].setPos(200, 150)
+    window._save_layout()
+    assert warnings == ["Read-only directory"]
+    assert window.layout_dirty
+    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Cancel)
+    assert not window.close()
+    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Discard)
+    assert window.close()
+    window.layout_dirty = False
