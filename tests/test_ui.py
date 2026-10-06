@@ -27,14 +27,14 @@ def test_playback_controls_and_reset(window, qapp):
     assert window.states is states
     window.show_state(len(states) - 1)
     assert not window.next_button.isEnabled()
-    assert window.graph_view.edges[1, 5].pen().color().name() == PATH
+    assert window.graph_view.edges[1, 5, 0].pen().color().name() == PATH
     assert "distancia 16" in window.detail_label.text()
     window.reset()
     assert window.graph_view.positions() == positions
     assert not window.states
     assert window.start_combo.isEnabled()
     assert window.graph_view.nodes[1].label.text() == "[∞, null]"
-    assert window.graph_view.edges[1, 5].pen().widthF() == 2
+    assert window.graph_view.edges[1, 5, 0].pen().widthF() == 2
 
 
 def test_drag_updates_edges_and_persists_on_release(window, qapp):
@@ -48,7 +48,7 @@ def test_drag_updates_edges_and_persists_on_release(window, qapp):
     QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
     QTest.mouseMove(view.viewport(), finish, delay=10)
     assert node.pos() != original
-    assert view.edges[1, 2].line().p1() == node.pos()
+    assert view.edges[1, 2, 0].path().pointAtPercent(0) == node.pos()
     assert layout_path.read_text() == old_contents
     QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=finish)
     saved = json.loads(layout_path.read_text())

@@ -7,7 +7,7 @@ from dijkstra_visualizer.io.layout_io import load_layout
 
 
 def test_save_topology_and_layout_round_trip(tmp_path):
-    graph = nx.Graph()
+    graph = nx.MultiGraph()
     graph.add_nodes_from([1, 2, 3])
     graph.add_edge(2, 1, weight=0.125)
     positions = {1: (10, 20), 2: (30, 40), 3: (-10, 5)}
@@ -15,7 +15,7 @@ def test_save_topology_and_layout_round_trip(tmp_path):
     reloaded = load_graph(tmp_path / "nodes.csv", tmp_path / "edges.csv")
     assert nx.utils.graphs_equal(reloaded, graph)
     assert load_layout(tmp_path / "layout.json", reloaded) == positions
-    assert (tmp_path / "edges.csv").read_text() == "source,target,weight\n1,2,0.125\n"
+    assert (tmp_path / "edges.csv").read_text() == "source,target,weight,id\n1,2,0.125,0\n"
 
 
 def test_partial_save_failure_restores_all_original_files(tmp_path, monkeypatch):

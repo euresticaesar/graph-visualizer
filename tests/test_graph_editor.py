@@ -26,15 +26,15 @@ def test_editor_buttons_add_rename_connect_and_change_weight(window, qapp):
     editor.target_combo.setCurrentIndex(editor.target_combo.findData(13))
     editor.weight_input.setText("2.5")
     QTest.mouseClick(editor.save_edge_button, Qt.MouseButton.LeftButton)
-    assert window.graph[12][13]["weight"] == 2.5
+    assert window.graph[12][13][0]["weight"] == 2.5
     editor.weight_input.setText("1.25")
     QTest.mouseClick(editor.save_edge_button, Qt.MouseButton.LeftButton)
-    assert window.graph[12][13]["weight"] == 1.25
+    assert window.graph[12][13][0]["weight"] == 1.25
     editor.node_combo.setCurrentIndex(editor.node_combo.findData(13))
     editor.node_id.setText("14")
     QTest.mouseClick(editor.rename_button, Qt.MouseButton.LeftButton)
     assert 13 not in window.graph
-    assert window.graph[12][14]["weight"] == 1.25
+    assert window.graph[12][14][0]["weight"] == 1.25
     editor.source_combo.setCurrentIndex(editor.source_combo.findData(12))
     editor.target_combo.setCurrentIndex(editor.target_combo.findData(14))
     QTest.mouseClick(editor.delete_edge_button, Qt.MouseButton.LeftButton)
@@ -203,7 +203,7 @@ def test_enter_renames_to_zero_and_saves_weight(window, key):
     editor.target_combo.setCurrentIndex(editor.target_combo.findData(2))
     editor.weight_input.setText("3.5")
     QTest.keyClick(editor.weight_input, key)
-    assert window.graph[0][2]["weight"] == 3.5
+    assert window.graph[0][2][0]["weight"] == 3.5
     assert_saved(window)
     window.initialize()
     window.show_state(1)

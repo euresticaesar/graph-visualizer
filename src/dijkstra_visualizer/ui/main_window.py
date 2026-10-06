@@ -521,7 +521,7 @@ class MainWindow(QMainWindow):
             snapshot.target = max(snapshot.graph)
         return self._commit_edit(snapshot)
 
-    def set_edge(self, source: int, target: int, weight: float) -> bool:
+    def set_edge(self, source: int, target: int, weight: float, key: int | None = None) -> bool:
         if self.states:
             return False
         if (
@@ -538,14 +538,19 @@ class MainWindow(QMainWindow):
             )
             return False
         snapshot = self._snapshot(f"Guardar conexión {source}–{target}")
-        snapshot.graph.add_edge(source, target, weight=weight)
-        return self._commit_edit(snapshot)
+        if key is not None and not self.graph.has_edge(source, target, key):
+            return False
+        key = snapshot.graph.add_edge(source, target, key=key, weight=weight)
+        if self._commit_edit(snapshot):
+            self.editor.select_edge(source, target, key)
+            return True
+        return False
 
-    def delete_edge(self, source: int, target: int) -> bool:
-        if self.states or not self.graph.has_edge(source, target):
+    def delete_edge(self, source: int, target: int, key: int = 0) -> bool:
+        if self.states or not self.graph.has_edge(source, target, key):
             return False
         snapshot = self._snapshot(f"Eliminar conexión {source}–{target}")
-        snapshot.graph.remove_edge(source, target)
+        snapshot.graph.remove_edge(source, target, key)
         return self._commit_edit(snapshot)
 
     def initialize(self) -> None:

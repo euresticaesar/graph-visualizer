@@ -1,11 +1,13 @@
 import math
+from collections import defaultdict
 
 import networkx as nx
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView
 
-from dijkstra_visualizer.core.dijkstra import reconstruct_path
+from dijkstra_visualizer.core.dijkstra import reconstruct_edge_path
+from dijkstra_visualizer.core.graph import EdgeId, edge_id, edges_with_keys
 from dijkstra_visualizer.core.models import DijkstraState
 from dijkstra_visualizer.io.layout_io import PositionMap
 from dijkstra_visualizer.ui.edge_item import EdgeItem
@@ -28,7 +30,7 @@ class GraphView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.nodes: dict[int, NodeItem] = {}
-        self.edges: dict[tuple[int, int], EdgeItem] = {}
+        self.edges: dict[EdgeId, EdgeItem] = {}
         self.set_graph(graph, positions)
         self.scene().selectionChanged.connect(self._selection_changed)
 
@@ -47,10 +49,15 @@ class GraphView(QGraphicsView):
                 item.setPos(*positions[node])
                 item.movement_finished.connect(self._movement_finished)
                 self.nodes[node] = item
-            for source, target, data in graph.edges(data=True):
-                edge = EdgeItem(self.nodes[source], self.nodes[target], data["weight"])
-                self.scene().addItem(edge)
-                self.edges[source, target] = edge
+            groups = defaultdict(list)
+            for source, target, key, data in edges_with_keys(graph):
+                groups[min(source, target), max(source, target)].append((key, data["weight"]))
+            for (source, target), connections in groups.items():
+                for index, (key, weight) in enumerate(sorted(connections)):
+                    offset = (index - (len(connections) - 1) / 2) * 40
+                    edge = EdgeItem(self.nodes[source], self.nodes[target], weight, key, offset)
+                    self.scene().addItem(edge)
+                    self.edges[edge_id(source, target, key)] = edge
         self._update_scene_rect()
 
     def _selection_changed(self) -> None:
@@ -80,8 +87,11 @@ class GraphView(QGraphicsView):
     def apply_state(
         self, state: DijkstraState | None, start: int, target: int, final: bool = False
     ) -> None:
-        path = reconstruct_path(state, start, target) if state is not None and final else []
-        path_edges = {frozenset((a, b)) for a, b in zip(path, path[1:], strict=False)}
+        path_edges = (
+            set(reconstruct_edge_path(state, start, target))
+            if state is not None and final
+            else set()
+        )
         for node, item in self.nodes.items():
             item.set_state(
                 state.distances[node] if state else math.inf,
@@ -93,7 +103,7 @@ class GraphView(QGraphicsView):
                 state is not None and node in state.updated_nodes,
             )
         for pair, edge in self.edges.items():
-            edge.set_highlighted(frozenset(pair) in path_edges)
+            edge.set_highlighted(pair in path_edges)
         self._update_scene_rect()
 
     def fit_graph(self) -> None:

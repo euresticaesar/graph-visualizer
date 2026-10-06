@@ -1,6 +1,8 @@
-from PySide6.QtCore import QLineF, Qt
-from PySide6.QtGui import QColor, QFont, QPen
-from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsSimpleTextItem
+import math
+
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen
+from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsSimpleTextItem
 
 from dijkstra_visualizer.ui.node_item import PATH, NodeItem, format_distance
 
@@ -16,12 +18,14 @@ class WeightLabel(QGraphicsSimpleTextItem):
         return super().boundingRect().adjusted(-4, -2, 4, 2)
 
 
-class EdgeItem(QGraphicsLineItem):
-    def __init__(self, source: NodeItem, target: NodeItem, weight: float):
+class EdgeItem(QGraphicsPathItem):
+    def __init__(self, source: NodeItem, target: NodeItem, weight: float, key=0, offset=0.0):
         super().__init__()
         self.source, self.target = source, target
+        self.key, self.offset = key, offset
         self.setZValue(-1)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setToolTip(f"Conexión {key} · Haz clic para cambiar el peso")
         self.label = WeightLabel(format_distance(weight), self)
         self.label.setFont(QFont("Sans Serif", 11, QFont.Weight.DemiBold))
         self.label.setBrush(QColor("#475569"))
@@ -32,11 +36,22 @@ class EdgeItem(QGraphicsLineItem):
         self.update_position()
 
     def update_position(self) -> None:
-        line = QLineF(self.source.pos(), self.target.pos())
-        self.setLine(line)
-        center = line.center()
-        bounds = self.label.boundingRect()
-        self.label.setPos(center.x() - bounds.width() / 2, center.y() - bounds.height() / 2)
+        start, end = self.source.pos(), self.target.pos()
+        delta = end - start
+        length = math.hypot(delta.x(), delta.y()) or 1
+        control = (start + end) / 2 + QPointF(-delta.y(), delta.x()) * (2 * self.offset / length)
+        path = QPainterPath(start)
+        path.quadTo(control, end)
+        self.setPath(path)
+        self.label.setPos(path.pointAtPercent(0.5) - self.label.boundingRect().center())
+
+    def shape(self):
+        stroker = QPainterPathStroker()
+        stroker.setWidth(12)
+        return stroker.createStroke(self.path())
+
+    def boundingRect(self):
+        return self.path().boundingRect().adjusted(-6, -6, 6, 6)
 
     def set_highlighted(self, highlighted: bool) -> None:
         self.setPen(QPen(QColor(PATH if highlighted else "#94a3b8"), 5 if highlighted else 2))

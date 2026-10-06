@@ -19,8 +19,8 @@ class GraphEditor(QWidget):
     add_node_requested = Signal(object)
     rename_node_requested = Signal(object, object)
     delete_node_requested = Signal(object)
-    save_edge_requested = Signal(object, object, float)
-    delete_edge_requested = Signal(object, object)
+    save_edge_requested = Signal(object, object, float, object)
+    delete_edge_requested = Signal(object, object, object)
 
     def __init__(self, graph: nx.Graph, parent=None):
         super().__init__(parent)
@@ -61,6 +61,8 @@ class GraphEditor(QWidget):
         edge_form = QFormLayout()
         edge_form.addRow("Desde", self.source_combo)
         edge_form.addRow("Hasta", self.target_combo)
+        self.edge_combo = NodeComboBox()
+        edge_form.addRow("Conexión", self.edge_combo)
         edge_form.addRow("Peso", self.weight_input)
         column.addLayout(edge_form)
         self.edge_info = QLabel()
@@ -68,13 +70,19 @@ class GraphEditor(QWidget):
         column.addWidget(self.edge_info)
         self.save_edge_button = QPushButton("Guardar conexión")
         self.delete_edge_button = QPushButton("Eliminar conexión")
+        self.add_edge_button = QPushButton("Agregar otra conexión")
+        column.addWidget(self.add_edge_button)
         column.addWidget(self.save_edge_button)
         column.addWidget(self.delete_edge_button)
-        self.save_edge_button.clicked.connect(self._save_edge)
+        self.save_edge_button.clicked.connect(lambda: self._save_edge())
+        self.add_edge_button.clicked.connect(lambda: self._save_edge(new=True))
+        self.edge_combo.currentIndexChanged.connect(self._weight_changed)
         self.weight_input.returnPressed.connect(self.save_edge_button.click)
         self.delete_edge_button.clicked.connect(
             lambda: self.delete_edge_requested.emit(
-                self.source_combo.currentData(), self.target_combo.currentData()
+                self.source_combo.currentData(),
+                self.target_combo.currentData(),
+                self.edge_combo.currentData(),
             )
         )
         self.error_label = QLabel()
@@ -125,19 +133,42 @@ class GraphEditor(QWidget):
         else:
             self.add_node_requested.emit(node)
 
+    def select_edge(self, source: int, target: int, key: int) -> None:
+        self.source_combo.setCurrentIndex(self.source_combo.findData(source))
+        self.target_combo.setCurrentIndex(self.target_combo.findData(target))
+        self.edge_combo.setCurrentIndex(self.edge_combo.findData(key))
+
     def _edge_selection_changed(self) -> None:
         source, target = self.source_combo.currentData(), self.target_combo.currentData()
-        exists = self.graph.has_edge(source, target)
-        self.weight_input.setText(str(self.graph[source][target]["weight"]) if exists else "1")
+        selected = self.edge_combo.currentData()
+        with QSignalBlocker(self.edge_combo):
+            self.edge_combo.clear()
+            for key in sorted(self.graph.get_edge_data(source, target, default={})):
+                self.edge_combo.addItem(f"Conexión {key}", key)
+            index = self.edge_combo.findData(selected)
+            self.edge_combo.setCurrentIndex(index if index >= 0 else 0)
+        exists = self.edge_combo.count() > 0
         self.edge_info.setText(
-            "Conexión existente: puedes cambiar su peso."
+            "Elige una conexión para modificarla o agrega otra entre estos nodos."
             if exists
             else "Nueva conexión sin dirección."
         )
         self.save_edge_button.setEnabled(source != target)
+        self.add_edge_button.setEnabled(source != target)
         self.delete_edge_button.setEnabled(exists)
+        self._weight_changed()
 
-    def _save_edge(self) -> None:
+    def _weight_changed(self) -> None:
+        source, target, key = (
+            self.source_combo.currentData(),
+            self.target_combo.currentData(),
+            self.edge_combo.currentData(),
+        )
+        self.weight_input.setText(
+            str(self.graph[source][target][key]["weight"]) if key is not None else "1"
+        )
+
+    def _save_edge(self, new: bool = False) -> None:
         try:
             weight = float(self.weight_input.text())
             if not math.isfinite(weight) or weight <= 0:
@@ -149,5 +180,8 @@ class GraphEditor(QWidget):
             return
         self.error_label.clear()
         self.save_edge_requested.emit(
-            self.source_combo.currentData(), self.target_combo.currentData(), weight
+            self.source_combo.currentData(),
+            self.target_combo.currentData(),
+            weight,
+            None if new else self.edge_combo.currentData(),
         )

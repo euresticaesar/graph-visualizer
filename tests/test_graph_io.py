@@ -17,7 +17,7 @@ def write_graph(tmp_path, nodes="id\n1\n2\n3\n", edges="source,target,weight\n1,
 def test_load_graph(tmp_path):
     graph = load_graph(*write_graph(tmp_path))
     assert set(graph) == {1, 2, 3}
-    assert graph[2][1]["weight"] == 2.5
+    assert graph[2][1][0]["weight"] == 2.5
     assert graph.degree[3] == 0
     assert not graph.is_directed()
 
@@ -37,9 +37,17 @@ def test_invalid_edges(tmp_path, edge):
         load_graph(*write_graph(tmp_path, edges=f"source,target,weight\n{edge}\n"))
 
 
-def test_duplicate_undirected_edge(tmp_path):
-    with pytest.raises(ValueError, match="duplicada"):
-        load_graph(*write_graph(tmp_path, edges="source,target,weight\n1,2,1\n2,1,2\n"))
+def test_parallel_undirected_edges(tmp_path):
+    graph = load_graph(*write_graph(tmp_path, edges="source,target,weight\n1,2,1\n2,1,2\n"))
+    assert graph.number_of_edges(1, 2) == 2
+    assert graph[1][2][0]["weight"] == 1
+    assert graph[1][2][1]["weight"] == 2
+
+
+@pytest.mark.parametrize("key", ["-1", "1.5", "a", "0"])
+def test_invalid_or_duplicate_edge_id(tmp_path, key):
+    with pytest.raises(ValueError):
+        load_graph(*write_graph(tmp_path, edges=f"source,target,weight,id\n1,2,1,0\n2,1,2,{key}\n"))
 
 
 def test_missing_graph_file(tmp_path):
