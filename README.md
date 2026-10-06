@@ -6,12 +6,23 @@ pytest para las pruebas y Ruff para revisar el código.
 
 ## Instalación
 
-Con uv instalado, abre una terminal en la carpeta del proyecto y ejecuta:
+Primero instala [uv](https://docs.astral.sh/uv/getting-started/installation/).
+En Windows, puedes hacerlo desde PowerShell o CMD con WinGet:
+
+```powershell
+winget install --id astral-sh.uv -e
+```
+
+Después abre una terminal nueva en la carpeta del proyecto. Estos comandos son
+iguales en Windows, Linux y macOS:
 
 ```sh
 uv sync
 uv run dijkstra-visualizer
 ```
+
+uv prepara el entorno, instala las dependencias y descarga Python 3.12 si hace
+falta. No necesitas activar el entorno virtual manualmente.
 
 La aplicación necesita un escritorio gráfico. Si quieres iniciarla desde otra
 carpeta, puedes indicar la ruta del proyecto:
