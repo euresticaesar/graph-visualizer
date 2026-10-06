@@ -7,11 +7,6 @@ pytest para las pruebas y Ruff para revisar el código.
 ## Instalación
 
 Primero instala [uv](https://docs.astral.sh/uv/getting-started/installation/).
-En Windows, puedes hacerlo desde PowerShell o CMD con WinGet:
-
-```powershell
-winget install --id astral-sh.uv -e
-```
 
 Después abre una terminal nueva en la carpeta del proyecto. Estos comandos son
 iguales en Windows, Linux y macOS:
