@@ -335,7 +335,8 @@ class MainWindow(QMainWindow):
                 background: transparent; border: 0;
             }
             QWidget#controlPage QLabel { background: transparent; }
-            QTabWidget::pane { border: 0; }
+            QTabWidget, QTabBar, QTabWidget > QStackedWidget { background: #ffffff; }
+            QTabWidget::pane { border: 0; background: #ffffff; }
             QTabBar::tab {
                 padding: 9px 18px; background: #f1f5f9; border: 1px solid #cbd5e1;
                 min-width: 100px; margin-bottom: 8px;
