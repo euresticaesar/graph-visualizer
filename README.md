@@ -68,6 +68,10 @@ verde oscuro, el destino tiene borde rojo y la ruta final se marca en turquesa.
 
 ## Datos
 
+Los archivos locales de `data/` se excluyen de Git. En el primer inicio, si no hay
+archivos locales, la aplicación copia el grafo de `data/example/`. Ese ejemplo sí
+se conserva en Git; tus cambios no lo modifican.
+
 | Archivo | Contenido |
 | --- | --- |
 | `data/nodes.csv` | Nodos con el encabezado `id` y un ID por fila. |
@@ -98,7 +102,7 @@ src/dijkstra_visualizer/
 ├── ui/         # Interfaz, editor y escena de Qt
 ├── export/     # Generación de imágenes
 └── paths.py    # Rutas del proyecto
-data/           # Grafo y posiciones
+data/           # Grafo local y ejemplo versionado en example/
 tests/          # Pruebas y datos de prueba
 output/         # Imágenes exportadas
 ```

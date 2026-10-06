@@ -101,3 +101,25 @@ def test_load_zero_and_large_ids_with_layout(tmp_path):
 def test_reject_invalid_csv_id(tmp_path, node):
     with pytest.raises(ValueError, match="ID"):
         load_graph(*write_graph(tmp_path, nodes=f"id\n{node}\n", edges="source,target,weight\n"))
+
+
+def test_initialize_graph_data_copies_example_once(tmp_path):
+    import shutil
+
+    from dijkstra_visualizer.io.graph_io import initialize_graph_data
+
+    shutil.copytree(Path(__file__).parent / "fixtures" / "sample", tmp_path / "example")
+    initialize_graph_data(tmp_path)
+    assert len(load_graph(tmp_path / "nodes.csv", tmp_path / "edges.csv")) == 12
+    (tmp_path / "nodes.csv").write_text("id\n0\n")
+    initialize_graph_data(tmp_path)
+    assert (tmp_path / "nodes.csv").read_text() == "id\n0\n"
+
+
+def test_initialize_graph_data_leaves_partial_data_untouched(tmp_path):
+    from dijkstra_visualizer.io.graph_io import initialize_graph_data
+
+    (tmp_path / "layout.json").write_text("{}")
+    initialize_graph_data(tmp_path)
+    assert not (tmp_path / "nodes.csv").exists()
+    assert (tmp_path / "layout.json").read_text() == "{}"

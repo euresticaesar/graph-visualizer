@@ -4,6 +4,8 @@ def main() -> int:
     from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
     from PySide6.QtWidgets import QApplication, QMessageBox
 
+    from dijkstra_visualizer.io.graph_io import initialize_graph_data
+    from dijkstra_visualizer.paths import DATA_DIR
     from dijkstra_visualizer.ui.main_window import MainWindow
 
     QLocale.setDefault(QLocale("es_MX"))
@@ -15,6 +17,7 @@ def main() -> int:
     app.setApplicationName("Visualizador de Dijkstra")
     app.setStyle("Fusion")
     try:
+        initialize_graph_data(DATA_DIR)
         window = MainWindow()
     except (OSError, ValueError) as error:
         QMessageBox.critical(None, "No se pudieron cargar los datos del grafo", str(error))

@@ -81,3 +81,13 @@ def save_graph_data(data_dir: Path, graph: nx.Graph, positions: PositionMap) -> 
             data_dir / "layout.json": serialize_layout(positions),
         }
     )
+
+
+def initialize_graph_data(data_dir: Path) -> None:
+    names = ("nodes.csv", "edges.csv", "layout.json")
+    if any((data_dir / name).exists() for name in names):
+        return
+    example_dir = data_dir / "example"
+    atomic_write_files(
+        {data_dir / name: (example_dir / name).read_text(encoding="utf-8") for name in names}
+    )

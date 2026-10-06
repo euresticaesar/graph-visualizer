@@ -15,3 +15,8 @@ output/
 # Cachés de herramientas
 .pytest_cache/
 .ruff_cache/
+
+# Datos locales del usuario
+/data/nodes.csv
+/data/edges.csv
+/data/layout.json
