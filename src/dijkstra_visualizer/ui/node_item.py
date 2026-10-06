@@ -39,6 +39,8 @@ class NodeItem(QGraphicsObject):
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
         self.setZValue(1)
+        self.setAcceptHoverEvents(True)
+        self.hovered = False
         self.label = AnnotationLabel(self)
         self.label.setFont(QFont("Sans Serif", 11))
         self.label.setBrush(QColor("#172b4d"))
@@ -54,6 +56,10 @@ class NodeItem(QGraphicsObject):
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self.hovered and self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable:
+            painter.setPen(QPen(QColor(PATH), 2, Qt.PenStyle.DotLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(QRectF(-30, -30, 60, 60))
         if self.is_current or option.state & QStyle.StateFlag.State_Selected:
             painter.setPen(QPen(QColor(CURRENT), 1.5, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -94,8 +100,32 @@ class NodeItem(QGraphicsObject):
         roles = (["INICIO"] if start else []) + (["DESTINO"] if target else [])
         self.caption.setText(" · ".join([*roles, state]))
         self.caption.setPos(-self.caption.boundingRect().width() / 2, -53)
-        self.setToolTip(f"Nodo {self.node_id} — {self.caption.text()}\n{self.label.text()}")
+        self.setToolTip(
+            f"Nodo {self.node_id} — {self.caption.text()}\n{self.label.text()}\n"
+            "En edición: arrastra el centro para mover o el borde para conectar."
+        )
         self.update()
+
+    def hoverEnterEvent(self, event) -> None:
+        self.hovered = True
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverMoveEvent(self, event) -> None:
+        if self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable:
+            distance = math.hypot(event.pos().x(), event.pos().y())
+            self.setCursor(
+                Qt.CursorShape.CrossCursor if 19 <= distance <= 34 else Qt.CursorShape.SizeAllCursor
+            )
+        else:
+            self.unsetCursor()
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event) -> None:
+        self.hovered = False
+        self.unsetCursor()
+        self.update()
+        super().hoverLeaveEvent(event)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:

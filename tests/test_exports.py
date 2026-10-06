@@ -8,7 +8,11 @@ from dijkstra_visualizer.export.composite_exporter import combine_phases
 from dijkstra_visualizer.export.image_exporter import export_graph, save_image
 
 
-def test_all_export_actions_preserve_live_view(window):
+@pytest.mark.parametrize("parallel", [False, True])
+def test_all_export_actions_preserve_live_view(window, parallel):
+    if parallel:
+        window.set_edge(1, 5, 20)
+        window.set_edge(1, 5, 2)
     assert all(not action.isEnabled() for action in window.export_actions)
     window.initialize()
     assert all(action.isEnabled() for action in window.export_actions)

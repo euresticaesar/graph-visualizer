@@ -3,8 +3,8 @@ from collections import defaultdict
 
 import networkx as nx
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsScene, QGraphicsView
 
 from dijkstra_visualizer.core.dijkstra import reconstruct_edge_path
 from dijkstra_visualizer.core.graph import EdgeId, edge_id, edges_with_keys
@@ -17,10 +17,18 @@ from dijkstra_visualizer.ui.node_item import NodeItem
 class GraphView(QGraphicsView):
     layout_changed = Signal()
     node_selected = Signal(object)
+    node_creation_requested = Signal(object)
+    edge_edit_requested = Signal(object, object, object)
+    connection_requested = Signal(object, object)
 
     def __init__(self, graph: nx.Graph, positions: PositionMap, parent=None):
         super().__init__(parent)
         self.graph = graph
+        self.editable = True
+        self.connection_source = None
+        self.connection_preview = None
+        self.pressed_edge = None
+        self.press_position = None
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
         self.setBackgroundBrush(QColor("#f8fafc"))
@@ -35,6 +43,7 @@ class GraphView(QGraphicsView):
         self.scene().selectionChanged.connect(self._selection_changed)
 
     def set_graph(self, graph: nx.Graph, positions: PositionMap) -> None:
+        self.cancel_gesture()
         self.graph = graph
         with QSignalBlocker(self.scene()):
             for edge in self.edges.values():
@@ -76,6 +85,8 @@ class GraphView(QGraphicsView):
         self.setSceneRect(self.scene().itemsBoundingRect().adjusted(-100, -100, 100, 100))
 
     def set_editable(self, editable: bool) -> None:
+        self.cancel_gesture()
+        self.editable = editable
         self.scene().clearSelection()
         for item in self.nodes.values():
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, editable)
@@ -118,3 +129,102 @@ class GraphView(QGraphicsView):
         if 0.15 <= scale <= 4:
             self.scale(factor, factor)
         event.accept()
+
+    def _graph_item_at(self, position):
+        item = self.itemAt(position)
+        while item is not None and not isinstance(item, (NodeItem, EdgeItem)):
+            item = item.parentItem()
+        return item
+
+    def cancel_gesture(self) -> None:
+        if self.connection_preview is not None:
+            self.scene().removeItem(self.connection_preview)
+            self.connection_preview = None
+        self.connection_source = None
+        self.pressed_edge = None
+        self.viewport().unsetCursor()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if (
+            self.editable
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.itemAt(event.position().toPoint()) is None
+        ):
+            position = self.mapToScene(event.position().toPoint())
+            self.cancel_gesture()
+            event.accept()
+            self.node_creation_requested.emit(position)
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if self.editable and event.button() == Qt.MouseButton.LeftButton:
+            point = event.position().toPoint()
+            item = self._graph_item_at(point)
+            self.press_position = point
+            if isinstance(item, NodeItem):
+                local = item.mapFromScene(self.mapToScene(point))
+                if 19 <= math.hypot(local.x(), local.y()) <= 34:
+                    self.connection_source = item.node_id
+                    pen = QPen(QColor("#087e8b"), 2, Qt.PenStyle.DashLine)
+                    self.connection_preview = self.scene().addPath(QPainterPath(item.pos()), pen)
+                    self.connection_preview.setZValue(-2)
+                    self.connection_preview.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+                    self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+                    event.accept()
+                    return
+            elif isinstance(item, EdgeItem):
+                self.pressed_edge = edge_id(item.source.node_id, item.target.node_id, item.key)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self.connection_source is not None:
+            path = QPainterPath(self.nodes[self.connection_source].pos())
+            path.lineTo(self.mapToScene(event.position().toPoint()))
+            self.connection_preview.setPath(path)
+            event.accept()
+            return
+        if self.pressed_edge is not None:
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        point = event.position().toPoint()
+        if event.button() == Qt.MouseButton.LeftButton and self.connection_source is not None:
+            source = self.connection_source
+            self.cancel_gesture()
+            item = self._graph_item_at(point)
+            event.accept()
+            if isinstance(item, NodeItem) and item.node_id != source:
+                local = item.mapFromScene(self.mapToScene(point))
+                if math.hypot(local.x(), local.y()) <= 34:
+                    self.connection_requested.emit(source, item.node_id)
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self.pressed_edge is not None:
+            selected = self.pressed_edge
+            self.cancel_gesture()
+            item = self._graph_item_at(point)
+            event.accept()
+            if (
+                isinstance(item, EdgeItem)
+                and edge_id(item.source.node_id, item.target.node_id, item.key) == selected
+                and (point - self.press_position).manhattanLength()
+                < QApplication.startDragDistance()
+            ):
+                self.edge_edit_requested.emit(*selected)
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_gesture()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        self.cancel_gesture()
+        super().focusOutEvent(event)

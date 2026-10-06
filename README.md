@@ -23,11 +23,19 @@ uv run --project /ruta/al/dijkstra-visualizer dijkstra-visualizer
 ## Uso
 
 1. En **Editar grafo**, agrega nodos o selecciona uno existente para cambiar su ID.
-2. Para crear una conexión, selecciona dos nodos, asigna un peso y pulsa **Guardar conexión**.
-3. Arrastra los nodos para acomodarlos; sus posiciones se guardan al soltar el mouse.
+2. Arrastra el borde de un nodo hasta otro y escribe el peso para crear una conexión.
+3. Arrastra el centro de los nodos para acomodarlos; sus posiciones se guardan al soltar el mouse.
 4. En **Recorrido**, elige el inicio y el destino, y pulsa **Iniciar Dijkstra**.
 5. Revisa los pasos con **Anterior** y **Siguiente**.
 6. Cuando quieras modificar el grafo, pulsa **Volver a editar**.
+
+También puedes crear nodos con doble clic en el fondo; se propone el siguiente
+ID disponible. Para cambiar un peso, haz clic en la arista o en su etiqueta.
+Puedes cancelar estos diálogos sin guardar cambios.
+
+Se permiten varias conexiones entre dos nodos y cada una aparece como una curva
+separada. En **Editar grafo**, elige la conexión para cambiarla o eliminarla;
+**Agregar otra conexión** crea una adicional con el peso indicado.
 
 Los ID pueden ser enteros desde 0, sin un máximo definido por la aplicación.
 No se permiten valores repetidos, negativos ni decimales. Los pesos, en cambio,
@@ -39,6 +47,7 @@ deshacer o rehacer. El historial conserva hasta 100 acciones durante la sesión.
 
 | Control | Acción |
 | --- | --- |
+| `Esc` al conectar nodos | Cancelar la conexión |
 | Enter en **ID nuevo** | Cambiar el ID seleccionado |
 | Enter en **Peso** | Guardar la conexión |
 | **↶ / ↷** o `Ctrl+Z` / `Ctrl+Y` | Deshacer / rehacer |
@@ -59,7 +68,8 @@ el grafo, mientras que el cálculo de las rutas sigue estos pasos:
 
 Cada paso se guarda como un estado inmutable, por lo que puedes avanzar o
 retroceder sin recalcular el recorrido. La ruta final se reconstruye a partir de
-los predecesores. Si el destino no es alcanzable, la interfaz lo indica.
+los predecesores y las conexiones elegidas, por lo que solo se resalta la arista
+usada entre cada par de nodos. Si el destino no es alcanzable, la interfaz lo indica.
 
 Las etiquetas muestran `[distancia, predecesor]`, con `∞` para una distancia aún
 desconocida y `null` cuando no hay predecesor. Los nodos sin alcanzar son grises,
@@ -75,8 +85,11 @@ se conserva en Git; tus cambios no lo modifican.
 | Archivo | Contenido |
 | --- | --- |
 | `data/nodes.csv` | Nodos con el encabezado `id` y un ID por fila. |
-| `data/edges.csv` | Conexiones con el encabezado `source,target,weight`; por ejemplo, `0,1,2.5`. |
+| `data/edges.csv` | Conexiones con el encabezado `source,target,weight,id`; por ejemplo, `0,1,2.5,0`. |
 | `data/layout.json` | Posiciones de los nodos; por ejemplo, `{"0": {"x": 220, "y": 160}}`. |
+
+El ID de conexión distingue las aristas entre el mismo par de nodos. También se
+acepta el formato anterior sin `id`; al guardar, se agrega esta columna.
 
 Como el grafo no es dirigido, cada conexión se registra una sola vez. No se
 permiten conexiones de un nodo consigo mismo. Si faltan posiciones, la aplicación

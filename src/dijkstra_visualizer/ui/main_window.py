@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -139,6 +140,9 @@ class MainWindow(QMainWindow):
         self.editor.save_edge_requested.connect(self.set_edge)
         self.editor.delete_edge_requested.connect(self.delete_edge)
         self.graph_view.node_selected.connect(self.editor.select_node)
+        self.graph_view.node_creation_requested.connect(self._create_node_at)
+        self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
+        self.graph_view.connection_requested.connect(self._connect_nodes)
         controls.addWidget(self.tabs, 1)
 
         self.legend_grid = QGridLayout()
@@ -213,6 +217,7 @@ class MainWindow(QMainWindow):
         graph_column.addLayout(toolbar)
         self.view_hint = QLabel()
         self.view_hint.setObjectName("hint")
+        self.view_hint.setWordWrap(True)
         graph_column.addWidget(self.view_hint)
         self.export_notice = QFrame()
         self.export_notice.setObjectName("exportNotice")
@@ -467,7 +472,7 @@ class MainWindow(QMainWindow):
     def _save_layout(self) -> None:
         self._commit_edit(self._snapshot("Mover nodos"))
 
-    def add_node(self, node: int) -> bool:
+    def add_node(self, node: int, position: tuple[float, float] | None = None) -> bool:
         if self.states:
             return False
         if type(node) is not int or node < 0 or node in self.graph:
@@ -475,16 +480,72 @@ class MainWindow(QMainWindow):
             return False
         snapshot = self._snapshot(f"Agregar nodo {node}")
         snapshot.graph.add_node(node)
-        center = self.graph_view.mapToScene(self.graph_view.viewport().rect().center())
-        x, y = center.x(), center.y()
-        while any(math.hypot(x - px, y - py) < 100 for px, py in snapshot.positions.values()):
-            x += 110
-        snapshot.positions[node] = (x, y)
+        if position is None:
+            center = self.graph_view.mapToScene(self.graph_view.viewport().rect().center())
+            x, y = center.x(), center.y()
+            while any(math.hypot(x - px, y - py) < 100 for px, py in snapshot.positions.values()):
+                x += 110
+            position = (x, y)
+        snapshot.positions[node] = position
         if self._commit_edit(snapshot):
             self.editor.select_node(node)
             self.graph_view.ensureVisible(self.graph_view.nodes[node])
             return True
         return False
+
+    def _create_node_at(self, position) -> None:
+        if self.states:
+            return
+        value = str(max(self.graph) + 1)
+        while True:
+            value, accepted = QInputDialog.getText(
+                self, "Agregar nodo", "ID del nodo (entero desde 0):", text=value
+            )
+            if not accepted:
+                return
+            try:
+                node = int(value)
+                if node < 0 or node in self.graph:
+                    raise ValueError
+            except ValueError:
+                QMessageBox.warning(self, "ID no válido", "Usa un entero desde 0 que no exista.")
+                continue
+            self.add_node(node, (position.x(), position.y()))
+            return
+
+    def _request_weight(self, source: int, target: int, weight: float) -> float | None:
+        value = str(weight)
+        while True:
+            value, accepted = QInputDialog.getText(
+                self,
+                f"Conexión {source}–{target}",
+                "Peso positivo (usa punto decimal):",
+                text=value,
+            )
+            if not accepted:
+                return None
+            try:
+                weight = float(value)
+                if not math.isfinite(weight) or weight <= 0:
+                    raise ValueError
+                return weight
+            except ValueError:
+                QMessageBox.warning(self, "Peso no válido", "Usa un número positivo y finito.")
+
+    def _edit_edge_at(self, source: int, target: int, key: int) -> None:
+        if self.states or not self.graph.has_edge(source, target, key):
+            return
+        self.editor.select_edge(source, target, key)
+        weight = self._request_weight(source, target, self.graph[source][target][key]["weight"])
+        if weight is not None:
+            self.set_edge(source, target, weight, key)
+
+    def _connect_nodes(self, source: int, target: int) -> None:
+        if self.states:
+            return
+        weight = self._request_weight(source, target, 1)
+        if weight is not None:
+            self.set_edge(source, target, weight)
 
     def rename_node(self, node: int, new_id: int) -> bool:
         if self.states:
@@ -629,7 +690,9 @@ class MainWindow(QMainWindow):
             "En Editar grafo puedes cambiar nodos, conexiones y pesos."
         )
         self.view_hint.setText(
-            "Arrastra los nodos para acomodarlos · Fondo: mover vista · Rueda: acercar"
+            "Doble clic en el fondo: agregar nodo · Arrastra el centro: mover nodo"
+            " · Borde a nodo: conectar\nClic en una arista o su peso: editar"
+            " · Arrastra el fondo: mover vista · Rueda: acercar"
         )
         self.graph_info.setText(
             f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones"

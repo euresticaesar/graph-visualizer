@@ -103,7 +103,7 @@ def test_rejects_invalid_endpoints(start, target):
         dijkstra_steps(weighted_graph([(1, 2, 1)]), start, target)
 
 
-@pytest.mark.parametrize("graph", [nx.Graph(), nx.DiGraph([(1, 2)]), nx.MultiGraph([(1, 2)])])
+@pytest.mark.parametrize("graph", [nx.Graph(), nx.DiGraph([(1, 2)]), nx.MultiDiGraph([(1, 2)])])
 def test_rejects_invalid_graph_type(graph):
     with pytest.raises(ValueError):
         dijkstra_steps(graph, 1, 2)
