@@ -33,6 +33,9 @@ class NodeItem(QGraphicsObject):
         self.is_target = False
         self.is_current = False
         self.drag_origin = QPointF()
+        self.show_state_labels = True
+        self.caption_roles: list[str] = []
+        self.state_caption = ""
         self.setFlags(
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -97,14 +100,27 @@ class NodeItem(QGraphicsObject):
             if visited
             else ("tentativo" if math.isfinite(distance) else "sin alcanzar")
         )
-        roles = (["INICIO"] if start else []) + (["DESTINO"] if target else [])
-        self.caption.setText(" · ".join([*roles, state]))
-        self.caption.setPos(-self.caption.boundingRect().width() / 2, -53)
+        self.caption_roles = (["INICIO"] if start else []) + (["DESTINO"] if target else [])
+        self.state_caption = state
+        self._update_caption()
+        full_caption = " · ".join([*self.caption_roles, state])
         self.setToolTip(
-            f"Nodo {self.node_id} — {self.caption.text()}\n{self.label.text()}\n"
+            f"Nodo {self.node_id} — {full_caption}\n{self.label.text()}\n"
             "En edición: arrastra el centro para mover o el borde para conectar."
         )
         self.update()
+
+    def set_state_labels_visible(self, visible: bool) -> None:
+        self.show_state_labels = visible
+        self._update_caption()
+
+    def _update_caption(self) -> None:
+        parts = [*self.caption_roles]
+        if self.show_state_labels:
+            parts.append(self.state_caption)
+        self.caption.setText(" · ".join(parts))
+        self.caption.setVisible(bool(parts))
+        self.caption.setPos(-self.caption.boundingRect().width() / 2, -53)
 
     def hoverEnterEvent(self, event) -> None:
         self.hovered = True

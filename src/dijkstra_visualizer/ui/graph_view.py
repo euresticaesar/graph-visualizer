@@ -25,6 +25,7 @@ class GraphView(QGraphicsView):
         super().__init__(parent)
         self.graph = graph
         self.editable = True
+        self.show_state_labels = True
         self.connection_source = None
         self.connection_preview = None
         self.pressed_edge = None
@@ -54,6 +55,7 @@ class GraphView(QGraphicsView):
             self.scene().clear()
             for node in sorted(graph):
                 item = NodeItem(node)
+                item.set_state_labels_visible(self.show_state_labels)
                 self.scene().addItem(item)
                 item.setPos(*positions[node])
                 item.movement_finished.connect(self._movement_finished)
@@ -94,6 +96,12 @@ class GraphView(QGraphicsView):
             item.setAcceptedMouseButtons(
                 Qt.MouseButton.LeftButton if editable else Qt.MouseButton.NoButton
             )
+
+    def set_state_labels_visible(self, visible: bool) -> None:
+        self.show_state_labels = visible
+        for item in self.nodes.values():
+            item.set_state_labels_visible(visible)
+        self._update_scene_rect()
 
     def apply_state(
         self, state: DijkstraState | None, start: int, target: int, final: bool = False

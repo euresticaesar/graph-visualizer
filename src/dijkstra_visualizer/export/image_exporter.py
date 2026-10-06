@@ -101,6 +101,8 @@ def export_graph(
     index: int,
     kind: ExportKind,
     output_dir: Path,
+    *,
+    show_state_labels: bool = True,
 ) -> Path:
     if not states or not 0 <= index < len(states):
         raise ValueError("Inicia Dijkstra antes de exportar un paso.")
@@ -108,6 +110,7 @@ def export_graph(
         raise ValueError(f"Tipo de exportación desconocido: {kind}.")
     view = GraphView(graph, positions)
     view.set_editable(False)
+    view.set_state_labels_visible(show_state_labels)
     try:
         # Usa los mismos límites, incluidas las etiquetas, para alinear todos los pasos.
         bounds = QRectF()

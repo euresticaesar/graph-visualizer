@@ -76,6 +76,10 @@ desconocida y `null` cuando no hay predecesor. Los nodos sin alcanzar son grises
 los tentativos amarillos y los visitados verdes. El nodo actual se distingue en
 verde oscuro, el destino tiene borde rojo y la ruta final se marca en turquesa.
 
+Desmarca **Mostrar etiquetas de estado** para ocultar textos como «visitado» o
+«tentativo», también en las exportaciones. INICIO, DESTINO y las etiquetas de
+distancia permanecen visibles.
+
 ## Datos
 
 Los archivos locales de `data/` se excluyen de Git. En el primer inicio, si no hay

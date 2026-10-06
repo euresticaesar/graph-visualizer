@@ -7,6 +7,7 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -144,6 +145,15 @@ class MainWindow(QMainWindow):
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
         self.graph_view.connection_requested.connect(self._connect_nodes)
         controls.addWidget(self.tabs, 1)
+
+        self.state_labels_checkbox = QCheckBox("Mostrar etiquetas de estado")
+        self.state_labels_checkbox.setChecked(True)
+        self.state_labels_checkbox.setToolTip(
+            "Oculta o muestra los estados de los nodos. "
+            "INICIO, DESTINO y las distancias permanecen."
+        )
+        self.state_labels_checkbox.toggled.connect(self.graph_view.set_state_labels_visible)
+        controls.addWidget(self.state_labels_checkbox)
 
         self.legend_grid = QGridLayout()
         self.legend_grid.setHorizontalSpacing(16)
@@ -298,7 +308,12 @@ class MainWindow(QMainWindow):
             QMainWindow, QWidget { background: #f8fafc; color: #172b4d; }
             QWidget { font-family: 'Sans Serif'; font-size: 13px; }
             QFrame#sidebar { background: #ffffff; border-right: 1px solid #dce3ed; }
-            QFrame#sidebar QLabel { background: transparent; }
+            QFrame#sidebar QLabel, QFrame#sidebar QCheckBox { background: transparent; }
+            QCheckBox { spacing: 8px; }
+            QCheckBox::indicator { width: 16px; height: 16px; }
+            QCheckBox::indicator:unchecked {
+                background: #ffffff; border: 1px solid #94a3b8; border-radius: 3px;
+            }
             QLabel#title { font-size: 30px; font-weight: 700; }
             QLabel#mode { color: #087e8b; font-weight: 600; }
             QLabel#section { font-weight: 600; padding-top: 4px; }
@@ -713,6 +728,7 @@ class MainWindow(QMainWindow):
                 self.state_index,
                 kind,
                 self.output_dir,
+                show_state_labels=self.graph_view.show_state_labels,
             )
         except (OSError, ValueError) as error:
             QApplication.restoreOverrideCursor()
