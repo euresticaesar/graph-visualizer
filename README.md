@@ -4,6 +4,8 @@ Aplicación de escritorio para editar grafos y explorar el algoritmo de Dijkstra
 paso a paso. Está desarrollada con Python 3.12+, uv, PySide6 y NetworkX, y utiliza
 pytest para las pruebas y Ruff para revisar el código.
 
+![Interfaz del visualizador de Dijkstra con un grafo de 30 nodos](demo_screenshot.png)
+
 ## Instalación
 
 Primero instala [uv](https://docs.astral.sh/uv/getting-started/installation/).
