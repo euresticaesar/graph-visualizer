@@ -45,3 +45,50 @@ def test_dijkstra_constraints():
     g.add_edge("A", "B", weight=-1)
     with pytest.raises(ValueError, match="negativos"):
         dijkstra_steps(g, "A", "B")
+
+
+def test_bellman_passes_order_and_negative_cycles():
+    from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
+    from dijkstra_visualizer.core.graph import ordered_arcs
+
+    g = nx.MultiDiGraph()
+    g.add_weighted_edges_from(
+        [
+            ("A", "B", 1),
+            ("B", "C", -2),
+            ("C", "B", 0),
+            ("C", "D", 3),
+            ("A", "E", 5),
+            ("X", "Y", -3),
+            ("Y", "X", 1),
+        ]
+    )
+    states = bellman_ford_steps(g, "A")
+    relaxation = [s for s in states if s.phase == "Relajación"]
+    assert len(relaxation) == (len(g) - 1) * len(ordered_arcs(g))
+    assert [s.current_edge for s in relaxation[: g.number_of_edges()]] == [
+        a[:3] for a in ordered_arcs(g)
+    ]
+    assert any(s.comparison.left == math.inf for s in relaxation)
+    final = states[-1]
+    assert final.affected == {"B", "C", "D"}
+    assert final.cycle
+    assert sum(g[u][v][k]["weight"] for u, v, k in final.cycle) < 0
+    assert reconstruct_path(final, "A", "E") == ["A", "E"]
+    assert reconstruct_path(final, "A", "B") == []
+    assert final.distances["X"] == math.inf
+    assert states[0].distances["B"] == math.inf
+
+
+def test_bellman_reference_and_early_stop():
+    from pathlib import Path
+
+    from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
+    from dijkstra_visualizer.io.presets import read_preset
+
+    g = read_preset(Path("src/dijkstra_visualizer/examples/bellman_ford.json")).graph
+    states = bellman_ford_steps(g, "z")
+    assert dict(states[-1].distances) == nx.single_source_bellman_ford_path_length(g, "z")
+    assert dict(bellman_ford_steps(g, "z", early_stop=True)[-1].distances) == dict(
+        states[-1].distances
+    )

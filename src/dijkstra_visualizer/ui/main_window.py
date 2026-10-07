@@ -8,6 +8,7 @@ from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -256,6 +257,11 @@ class MainWindow(PresetControls, QMainWindow):
         self.export_notice.hide()
         graph_column.addWidget(self.export_notice)
         graph_column.addWidget(self.graph_view, 1)
+        from dijkstra_visualizer.ui.state_panel import StatePanel
+
+        self.state_panel = StatePanel()
+        self.state_panel.hide()
+        graph_column.addWidget(self.state_panel, 1)
         graph_column.addLayout(export_row)
         row.addWidget(sidebar)
         row.addWidget(graph_panel, 1)
@@ -267,6 +273,13 @@ class MainWindow(PresetControls, QMainWindow):
         controls = QVBoxLayout(page)
         controls.setContentsMargins(0, 12, 4, 8)
         controls.setSpacing(10)
+        self.algorithm_combo = QComboBox()
+        self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford"])
+        self.algorithm_combo.currentTextChanged.connect(self.algorithm_changed)
+        controls.addWidget(self.algorithm_combo)
+        self.early_stop = QCheckBox("Terminar tras una pasada sin cambios")
+        self.early_stop.setVisible(False)
+        controls.addWidget(self.early_stop)
         self.start_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         for node in sorted(self.graph):
             self.start_combo.addItem(f"Nodo {node}", node)
@@ -487,6 +500,9 @@ class MainWindow(PresetControls, QMainWindow):
             self.statusBar().showMessage(f"Rehecho: {snapshot.description}", 5000)
 
     def _selection_changed(self) -> None:
+        if self.states:
+            self.show_state(self.state_index)
+            return
         if not self.states and self.history:
             self._commit_edit(self._snapshot("Cambiar inicio o destino"))
 
@@ -647,15 +663,22 @@ class MainWindow(PresetControls, QMainWindow):
 
     def initialize(self) -> None:
         try:
-            self.states = dijkstra_steps(
-                self.graph, self.start, self.target, detailed=self.detail_checkbox.isChecked()
-            )
+            if self.algorithm_combo.currentText() == "Bellman-Ford":
+                from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
+
+                self.states = bellman_ford_steps(
+                    self.graph, self.start, early_stop=self.early_stop.isChecked()
+                )
+            else:
+                self.states = dijkstra_steps(
+                    self.graph, self.start, self.target, detailed=self.detail_checkbox.isChecked()
+                )
         except ValueError as error:
-            QMessageBox.warning(self, "No se pudo iniciar Dijkstra", str(error))
+            QMessageBox.warning(self, "No se pudo iniciar el algoritmo", str(error))
             return
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(False)
-        self.target_combo.setEnabled(False)
+        self.target_combo.setEnabled(self.algorithm_combo.currentText() != "Dijkstra")
         self.run_button.setEnabled(False)
         self.reset_button.setEnabled(True)
         self.tabs.setCurrentIndex(0)
@@ -670,6 +693,13 @@ class MainWindow(PresetControls, QMainWindow):
         self._sync_history()
         self.show_state(0)
 
+    def algorithm_changed(self):
+        self.reset()
+        bellman = self.algorithm_combo.currentText() == "Bellman-Ford"
+        self.early_stop.setVisible(bellman)
+        self.detail_checkbox.setVisible(not bellman)
+        self.run_button.setText("Iniciar " + self.algorithm_combo.currentText())
+
     def change_detail(self):
         if self.states:
             from dijkstra_visualizer.core.models import StateView
@@ -683,6 +713,7 @@ class MainWindow(PresetControls, QMainWindow):
             return
         self.state_index = index
         state = self.states[index]
+        self.state_panel.show_state(self.graph, state)
         final = index == len(self.states) - 1
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
@@ -699,6 +730,7 @@ class MainWindow(PresetControls, QMainWindow):
         for action in self.export_actions:
             action.setEnabled(False)
         self.states = []
+        self.state_panel.hide()
         self.state_index = 0
         self.graph_view.set_editable(True)
         self.graph_view.apply_state(None, self.start, self.target)

@@ -132,8 +132,15 @@ class GraphView(QGraphicsView):
                 node == target,
                 state is not None and node in state.updated_nodes,
             )
+            if state and state.algorithm != "Dijkstra":
+                item.state_caption = "sin mínimo finito" if node in state.affected else ""
+                item._update_caption()
+                if node in state.affected:
+                    item.fill = QColor("#fecaca")
         for pair, edge in self.edges.items():
             edge.set_highlighted(pair in path_edges)
+            if state and pair in {edge_id(*e, self.graph.is_directed()) for e in state.cycle}:
+                edge.setPen(QPen(QColor("#dc2626"), 5))
             if (
                 state
                 and state.current_edge
