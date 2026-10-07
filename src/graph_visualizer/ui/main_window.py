@@ -26,17 +26,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dijkstra_visualizer.core.dijkstra import dijkstra_steps
-from dijkstra_visualizer.core.graph import graphs_equal, validate_graph
-from dijkstra_visualizer.core.models import DijkstraState
-from dijkstra_visualizer.export.image_exporter import ExportKind, export_job
-from dijkstra_visualizer.io.graph_io import load_graph, save_graph_data
-from dijkstra_visualizer.io.layout_io import PositionMap, load_layout, save_layout
-from dijkstra_visualizer.paths import DATA_DIR, OUTPUT_DIR
-from dijkstra_visualizer.ui.graph_editor import GraphEditor
-from dijkstra_visualizer.ui.graph_view import GraphView
-from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
-from dijkstra_visualizer.ui.preset_controls import PresetControls
+from graph_visualizer.core.dijkstra import dijkstra_steps
+from graph_visualizer.core.graph import graphs_equal, validate_graph
+from graph_visualizer.core.models import DijkstraState
+from graph_visualizer.export.image_exporter import ExportKind, export_job
+from graph_visualizer.io.graph_io import load_graph, save_graph_data
+from graph_visualizer.io.layout_io import PositionMap, load_layout, save_layout
+from graph_visualizer.paths import DATA_DIR, OUTPUT_DIR
+from graph_visualizer.ui.graph_editor import GraphEditor
+from graph_visualizer.ui.graph_view import GraphView
+from graph_visualizer.ui.node_combo_box import NodeComboBox
+from graph_visualizer.ui.preset_controls import PresetControls
 
 
 class ControlTabs(QTabWidget):
@@ -49,8 +49,8 @@ class ControlTabs(QTabWidget):
 class EditSnapshot:
     graph: nx.Graph
     positions: PositionMap
-    start: int
-    target: int
+    start: str
+    target: str
     description: str
     preset_path: Path | None = None
     preset_baseline: dict | None = None
@@ -274,7 +274,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.visual_splitter = QSplitter(Qt.Orientation.Vertical)
         self.visual_splitter.addWidget(self.graph_view)
         graph_column.addWidget(self.visual_splitter, 1)
-        from dijkstra_visualizer.ui.state_panel import MatrixPanel, StatePanel
+        from graph_visualizer.ui.state_panel import MatrixPanel, StatePanel
 
         self.state_panel = StatePanel()
         self.state_panel.hide()
@@ -482,7 +482,8 @@ class MainWindow(PresetControls, QMainWindow):
         self.editor.set_graph(self.graph)
         self.graph_view.apply_state(None, self.start, self.target)
         self.graph_info.setText(
-            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones"
+            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones · "
+            f"{'Dirigido' if self.graph.is_directed() else 'No dirigido'}"
         )
 
     def _persist_and_restore(self, snapshot: EditSnapshot) -> bool:
@@ -573,7 +574,7 @@ class MainWindow(PresetControls, QMainWindow):
     def _save_layout(self) -> None:
         self._commit_edit(self._snapshot("Mover nodos"))
 
-    def add_node(self, node: int, position: tuple[float, float] | None = None) -> bool:
+    def add_node(self, node: str, position: tuple[float, float] | None = None) -> bool:
         if self.states:
             return False
         if not isinstance(node, str) or not node or node.strip() != node or node in self.graph:
@@ -614,7 +615,7 @@ class MainWindow(PresetControls, QMainWindow):
             self.add_node(node, (position.x(), position.y()))
             return
 
-    def _request_weight(self, source: int, target: int, weight: float) -> float | None:
+    def _request_weight(self, source: str, target: str, weight: float) -> float | None:
         value = str(weight)
         while True:
             value, accepted = QInputDialog.getText(
@@ -637,7 +638,7 @@ class MainWindow(PresetControls, QMainWindow):
                     "Usa un número finito; negativo solo en grafos dirigidos.",
                 )
 
-    def _edit_edge_at(self, source: int, target: int, key: int) -> None:
+    def _edit_edge_at(self, source: str, target: str, key: int) -> None:
         if self.states or not self.graph.has_edge(source, target, key):
             return
         self.editor.select_edge(source, target, key)
@@ -645,14 +646,14 @@ class MainWindow(PresetControls, QMainWindow):
         if weight is not None:
             self.set_edge(source, target, weight, key)
 
-    def _connect_nodes(self, source: int, target: int) -> None:
+    def _connect_nodes(self, source: str, target: str) -> None:
         if self.states:
             return
         weight = self._request_weight(source, target, 1)
         if weight is not None:
             self.set_edge(source, target, weight)
 
-    def rename_node(self, node: int, new_id: int) -> bool:
+    def rename_node(self, node: str, new_id: str) -> bool:
         if self.states:
             return False
         if (
@@ -678,7 +679,7 @@ class MainWindow(PresetControls, QMainWindow):
             return True
         return False
 
-    def delete_node(self, node: int) -> bool:
+    def delete_node(self, node: str) -> bool:
         if self.states:
             return False
         if node not in self.graph or len(self.graph) == 1:
@@ -693,7 +694,7 @@ class MainWindow(PresetControls, QMainWindow):
             snapshot.target = max(snapshot.graph)
         return self._commit_edit(snapshot)
 
-    def set_edge(self, source: int, target: int, weight: float, key: int | None = None) -> bool:
+    def set_edge(self, source: str, target: str, weight: float, key: int | None = None) -> bool:
         if self.states:
             return False
         if (
@@ -718,7 +719,7 @@ class MainWindow(PresetControls, QMainWindow):
             return True
         return False
 
-    def delete_edge(self, source: int, target: int, key: int = 0) -> bool:
+    def delete_edge(self, source: str, target: str, key: int = 0) -> bool:
         if self.states or not self.graph.has_edge(source, target, key):
             return False
         snapshot = self._snapshot(f"Eliminar conexión {source}–{target}")
@@ -734,7 +735,7 @@ class MainWindow(PresetControls, QMainWindow):
             else len(self.graph) * self.graph.number_of_edges() * 2
         )
         if estimated > 5000:
-            from dijkstra_visualizer.ui.worker import AlgorithmWorker
+            from graph_visualizer.ui.worker import AlgorithmWorker
 
             self.busy = True
             self.centralWidget().setEnabled(False)
@@ -754,13 +755,13 @@ class MainWindow(PresetControls, QMainWindow):
             return
         try:
             if self.algorithm_combo.currentText() == "Floyd-Warshall":
-                from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+                from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
 
                 self.states = floyd_warshall_steps(
                     self.graph, detailed=self.detail_checkbox.isChecked()
                 )
             elif self.algorithm_combo.currentText() == "Bellman-Ford":
-                from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
+                from graph_visualizer.core.bellman_ford import bellman_ford_steps
 
                 self.states = bellman_ford_steps(
                     self.graph, self.start, early_stop=self.early_stop.isChecked()
@@ -783,6 +784,8 @@ class MainWindow(PresetControls, QMainWindow):
         self.busy = False
         self.centralWidget().setEnabled(True)
         self.states = states
+        self.early_stop.setEnabled(False)
+        self.statusBar().showMessage(f"Ejecución preparada · {len(states)} pasos disponibles")
         self.refresh_navigation()
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(self.algorithm_combo.currentText() == "Floyd-Warshall")
@@ -805,7 +808,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.fit_graph()
 
     def change_graph_type(self, directed):
-        from dijkstra_visualizer.core.graph import convert_graph
+        from graph_visualizer.core.graph import convert_graph
 
         snapshot = self._snapshot("Cambiar tipo de grafo")
         try:
@@ -878,7 +881,7 @@ class MainWindow(PresetControls, QMainWindow):
     def change_detail(self):
         self.stop_playback()
         if self.states:
-            from dijkstra_visualizer.core.models import StateView
+            from graph_visualizer.core.models import StateView
 
             step = self.states[self.state_index].step
             self.states = StateView(self.states.events, self.detail_checkbox.isChecked())
@@ -906,7 +909,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
         self.step_label.setText(f"Paso {index} / {len(self.states) - 1}")
-        from dijkstra_visualizer.core.dijkstra import route_description
+        from graph_visualizer.core.dijkstra import route_description
 
         self.detail_label.setText(
             state.explanation + "\n" + route_description(state, self.start, self.target)
@@ -930,6 +933,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.start_combo.setEnabled(True)
         self.target_combo.setEnabled(True)
         self.run_button.setEnabled(True)
+        self.early_stop.setEnabled(True)
         self.previous_button.setEnabled(False)
         self.next_button.setEnabled(False)
         self.reset_button.setEnabled(False)
@@ -947,7 +951,8 @@ class MainWindow(PresetControls, QMainWindow):
             " · Arrastra el fondo: mover vista · Rueda: acercar"
         )
         self.graph_info.setText(
-            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones"
+            f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones · "
+            f"{'Dirigido' if self.graph.is_directed() else 'No dirigido'}"
         )
         self._sync_history()
 
@@ -955,7 +960,7 @@ class MainWindow(PresetControls, QMainWindow):
         if not self.states or self.busy:
             return
         self.stop_playback()
-        from dijkstra_visualizer.core.models import StateView
+        from graph_visualizer.core.models import StateView
 
         states = self.states
         mode = self.export_detail.currentIndex()

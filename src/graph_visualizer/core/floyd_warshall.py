@@ -6,8 +6,8 @@ Route trees retain the operands at the instant of improvement, not mutable refer
 
 import math
 
-from dijkstra_visualizer.core.graph import ordered_arcs, validate_graph
-from dijkstra_visualizer.core.models import (
+from graph_visualizer.core.graph import ordered_arcs, validate_graph
+from graph_visualizer.core.models import (
     AlgorithmState,
     Comparison,
     RouteTree,

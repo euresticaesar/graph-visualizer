@@ -3,8 +3,8 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.io.graph_io import load_graph
-from dijkstra_visualizer.io.layout_io import load_layout, save_layout
+from graph_visualizer.io.graph_io import load_graph
+from graph_visualizer.io.layout_io import load_layout, save_layout
 
 
 def write_graph(tmp_path, nodes="id\n1\n2\n3\n", edges="source,target,weight\n1,2,2.5\n"):
@@ -114,7 +114,7 @@ def test_reject_invalid_csv_id(tmp_path, node):
 def test_initialize_graph_data_copies_example_once(tmp_path):
     import shutil
 
-    from dijkstra_visualizer.io.graph_io import initialize_graph_data
+    from graph_visualizer.io.graph_io import initialize_graph_data
 
     shutil.copytree(Path(__file__).parent / "fixtures" / "sample", tmp_path / "example")
     initialize_graph_data(tmp_path)
@@ -125,7 +125,7 @@ def test_initialize_graph_data_copies_example_once(tmp_path):
 
 
 def test_initialize_graph_data_leaves_partial_data_untouched(tmp_path):
-    from dijkstra_visualizer.io.graph_io import initialize_graph_data
+    from graph_visualizer.io.graph_io import initialize_graph_data
 
     (tmp_path / "layout.json").write_text("{}")
     initialize_graph_data(tmp_path)

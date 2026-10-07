@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from dijkstra_visualizer.core.graph import EdgeId
+from graph_visualizer.core.graph import EdgeId
 
 
 def format_number(value: float) -> str:

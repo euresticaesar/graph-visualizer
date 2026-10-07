@@ -8,11 +8,11 @@ from typing import Literal
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen
 
-from dijkstra_visualizer.core.dijkstra import route_description
-from dijkstra_visualizer.core.graph import ordered_arcs
-from dijkstra_visualizer.core.models import format_number
-from dijkstra_visualizer.ui.graph_view import GraphView
-from dijkstra_visualizer.ui.state_panel import matrix_style
+from graph_visualizer.core.dijkstra import route_description
+from graph_visualizer.core.graph import ordered_arcs
+from graph_visualizer.core.models import format_number
+from graph_visualizer.ui.graph_view import GraphView
+from graph_visualizer.ui.state_panel import matrix_style
 
 ExportKind = Literal["current", "all", "combined", "final"]
 MAX_COMBINED_PIXELS = 24_000_000
@@ -213,14 +213,13 @@ def render_state(
                 )
                 painter.setFont(font(20))
                 painter.drawText(QRectF(32, 78, width - 64, detail_height), flags, detail)
-            view.scene().render(
-                painter,
-                QRectF(
-                    32 if not simple else 0, top, width - 64 if not simple else width, graph_height
-                ),
-                bounds,
-                Qt.AspectRatioMode.KeepAspectRatio,
+            area = QRectF(
+                32 if not simple else 0, top, width - 64 if not simple else width, graph_height
             )
+            scale = min(area.width() / bounds.width(), area.height() / bounds.height())
+            graph_area = QRectF(0, 0, bounds.width() * scale, bounds.height() * scale)
+            graph_area.moveCenter(area.center())
+            view.scene().render(painter, graph_area, bounds, Qt.AspectRatioMode.KeepAspectRatio)
             x = 32
             for (title, headers, rows), columns in zip(tables, widths, strict=True):
                 draw_table(

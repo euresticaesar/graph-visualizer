@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dijkstra_visualizer.core.graph import ordered_arcs
-from dijkstra_visualizer.core.models import format_number
+from graph_visualizer.core.graph import ordered_arcs
+from graph_visualizer.core.models import format_number
 
 
 class StatePanel(QWidget):

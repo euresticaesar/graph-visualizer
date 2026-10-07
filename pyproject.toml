@@ -1,7 +1,7 @@
 [project]
-name = "dijkstra-visualizer"
-version = "0.1.0"
-description = "Visualizador interactivo del algoritmo de Dijkstra paso a paso"
+name = "graph-visualizer"
+version = "0.2.0"
+description = "Visualizador didáctico de Dijkstra, Bellman-Ford y Floyd-Warshall"
 readme = "README.md"
 authors = [
     { name = "César Euresti", email = "euresti.mgmt@gmail.com" }
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-dijkstra-visualizer = "dijkstra_visualizer:main"
+graph-visualizer = "graph_visualizer:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]

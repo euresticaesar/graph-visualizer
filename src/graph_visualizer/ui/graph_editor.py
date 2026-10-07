@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
+from graph_visualizer.ui.node_combo_box import NodeComboBox
 
 
 class GraphEditor(QWidget):
@@ -132,7 +132,7 @@ class GraphEditor(QWidget):
         self.error_label.clear()
         self._edge_selection_changed()
 
-    def select_node(self, node: int) -> None:
+    def select_node(self, node: str) -> None:
         self.node_combo.setCurrentIndex(self.node_combo.findData(node))
         self.source_combo.setCurrentIndex(self.source_combo.findData(node))
 
@@ -150,7 +150,7 @@ class GraphEditor(QWidget):
         else:
             self.add_node_requested.emit(node)
 
-    def select_edge(self, source: int, target: int, key: int) -> None:
+    def select_edge(self, source: str, target: str, key: int) -> None:
         self.source_combo.setCurrentIndex(self.source_combo.findData(source))
         self.target_combo.setCurrentIndex(self.target_combo.findData(target))
         self.edge_combo.setCurrentIndex(self.edge_combo.findData(key))

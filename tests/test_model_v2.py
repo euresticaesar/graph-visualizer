@@ -3,9 +3,9 @@ import math
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.core.graph import convert_graph, normalize_id, validate_graph
-from dijkstra_visualizer.io.graph_io import load_graph, save_graph_data
-from dijkstra_visualizer.io.layout_io import load_layout
+from graph_visualizer.core.graph import convert_graph, normalize_id, validate_graph
+from graph_visualizer.io.graph_io import load_graph, save_graph_data
+from graph_visualizer.io.layout_io import load_layout
 
 
 def test_csv_escape_and_legacy_migration(tmp_path):
@@ -42,3 +42,12 @@ def test_directed_conversion_and_weights(tmp_path):
     assert normalize_id(123) == "123"
     with pytest.raises(ValueError):
         normalize_id(" ")
+
+
+@pytest.mark.parametrize("metadata", ["[]", '{"version":true,"directed":false}', "{}"])
+def test_invalid_working_graph_metadata_is_rejected(tmp_path, metadata):
+    (tmp_path / "nodes.csv").write_text("id\nA\n")
+    (tmp_path / "edges.csv").write_text("source,target,weight\n")
+    (tmp_path / "graph.json").write_text(metadata)
+    with pytest.raises(ValueError):
+        load_graph(tmp_path / "nodes.csv", tmp_path / "edges.csv")

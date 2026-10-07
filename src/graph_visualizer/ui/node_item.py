@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsObject, QGraphicsSimpleTextItem, QStyle
 
-from dijkstra_visualizer.core.models import format_number as format_distance
+from graph_visualizer.core.models import format_number as format_distance
 
 UNREACHED = "#e2e8f0"
 TENTATIVE = "#fef3c7"
@@ -24,7 +24,7 @@ class NodeItem(QGraphicsObject):
     position_changed = Signal()
     movement_finished = Signal()
 
-    def __init__(self, node_id: int):
+    def __init__(self, node_id: str):
         super().__init__()
         self.node_id = node_id
         self.node_width = max(

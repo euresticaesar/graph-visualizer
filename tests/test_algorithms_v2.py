@@ -3,12 +3,12 @@ import math
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.core.dijkstra import (
+from graph_visualizer.core.dijkstra import (
     dijkstra_steps,
     reconstruct_edge_path,
     reconstruct_path,
 )
-from dijkstra_visualizer.core.models import StateView
+from graph_visualizer.core.models import StateView
 
 
 def test_dijkstra_comparisons_and_modes():
@@ -48,8 +48,8 @@ def test_dijkstra_constraints():
 
 
 def test_bellman_passes_order_and_negative_cycles():
-    from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
-    from dijkstra_visualizer.core.graph import ordered_arcs
+    from graph_visualizer.core.bellman_ford import bellman_ford_steps
+    from graph_visualizer.core.graph import ordered_arcs
 
     g = nx.MultiDiGraph()
     g.add_weighted_edges_from(
@@ -83,10 +83,10 @@ def test_bellman_passes_order_and_negative_cycles():
 def test_bellman_reference_and_early_stop():
     from pathlib import Path
 
-    from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
-    from dijkstra_visualizer.io.presets import read_preset
+    from graph_visualizer.core.bellman_ford import bellman_ford_steps
+    from graph_visualizer.io.presets import read_preset
 
-    g = read_preset(Path("src/dijkstra_visualizer/examples/bellman_ford.json")).graph
+    g = read_preset(Path("src/graph_visualizer/examples/bellman_ford.json")).graph
     states = bellman_ford_steps(g, "z")
     assert dict(states[-1].distances) == nx.single_source_bellman_ford_path_length(g, "z")
     assert dict(bellman_ford_steps(g, "z", early_stop=True)[-1].distances) == dict(
@@ -97,11 +97,11 @@ def test_bellman_reference_and_early_stop():
 def test_floyd_all_pairs_and_persistent_matrices():
     from pathlib import Path
 
-    from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
-    from dijkstra_visualizer.io.presets import read_preset
-    from dijkstra_visualizer.ui.state_panel import matrix_style
+    from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
+    from graph_visualizer.io.presets import read_preset
+    from graph_visualizer.ui.state_panel import matrix_style
 
-    g = read_preset(Path("src/dijkstra_visualizer/examples/floyd_warshall.json")).graph
+    g = read_preset(Path("src/graph_visualizer/examples/floyd_warshall.json")).graph
     states = floyd_warshall_steps(g, detailed=True)
     assert len([s for s in states if s.comparison]) == len(g) ** 3
     reference = dict(nx.floyd_warshall(g))
@@ -121,7 +121,7 @@ def test_floyd_all_pairs_and_persistent_matrices():
 
 
 def test_floyd_negative_cycle_pairs_and_exact_parallel_edge():
-    from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+    from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
 
     g = nx.MultiDiGraph()
     g.add_weighted_edges_from([("A", "B", 1), ("B", "C", -2), ("C", "B", 1), ("C", "D", 1)])
@@ -135,3 +135,52 @@ def test_floyd_negative_cycle_pairs_and_exact_parallel_edge():
     assert reconstruct_path(final, "X", "Y") == ["X", "Y"]
     assert reconstruct_edge_path(final, "X", "Y") == [("X", "Y", 1)]
     assert reconstruct_path(final, "Y", "X") == []
+
+
+@pytest.mark.parametrize("seed", range(10))
+@pytest.mark.parametrize("directed", [False, True])
+def test_all_algorithms_against_independent_random_reference(seed, directed):
+    import random
+
+    from graph_visualizer.core.bellman_ford import bellman_ford_steps
+    from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
+
+    rng = random.Random(seed)
+    graph = nx.MultiDiGraph() if directed else nx.MultiGraph()
+    graph.add_nodes_from(["A", "B", "C", "10", "2", "isla"])
+    for u in sorted(graph):
+        for v in sorted(graph):
+            if u == v or (not directed and u > v) or "isla" in (u, v):
+                continue
+            for key in range(rng.randrange(3)):
+                graph.add_edge(u, v, key=key, weight=rng.choice([0, 0.125, 1, 4]))
+    floyd = floyd_warshall_steps(graph)[-1]
+    for i, start in enumerate(floyd.nodes):
+        reference = nx.single_source_dijkstra_path_length(graph, start)
+        bellman = bellman_ford_steps(graph, start)[-1]
+        for j, target in enumerate(floyd.nodes):
+            expected = reference.get(target, math.inf)
+            assert bellman.distances[target] == expected
+            assert floyd.matrix[i][j] == expected
+            assert dijkstra_steps(graph, start, target)[-1].distances[target] == expected
+            if math.isfinite(expected):
+                for state in [floyd, bellman]:
+                    route = reconstruct_edge_path(state, start, target)
+                    assert sum(graph[u][v][key]["weight"] for u, v, key in route) == expected
+
+
+def test_negative_directed_dag_and_multiple_unreachable_cycles():
+    from graph_visualizer.core.bellman_ford import bellman_ford_steps
+    from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
+
+    graph = nx.MultiDiGraph()
+    graph.add_weighted_edges_from(
+        [("A", "B", -3), ("A", "C", 0), ("B", "C", -2), ("X", "Y", -2), ("Y", "X", 1)]
+    )
+    bellman = bellman_ford_steps(graph, "A")[-1]
+    assert not bellman.affected and not bellman.cycle
+    assert bellman.distances["C"] == -5
+    assert reconstruct_path(bellman, "A", "C") == ["A", "B", "C"]
+    floyd = floyd_warshall_steps(graph)[-1]
+    assert reconstruct_path(floyd, "A", "C") == ["A", "B", "C"]
+    assert floyd.affected == {(3, 3), (3, 4), (4, 3), (4, 4)}

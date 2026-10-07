@@ -1,9 +1,9 @@
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.io import files
-from dijkstra_visualizer.io.graph_io import load_graph, save_graph_data
-from dijkstra_visualizer.io.layout_io import load_layout
+from graph_visualizer.io import files
+from graph_visualizer.io.graph_io import load_graph, save_graph_data
+from graph_visualizer.io.layout_io import load_layout
 
 
 def test_save_topology_and_layout_round_trip(tmp_path):

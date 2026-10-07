@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dijkstra_visualizer.core.graph import graphs_equal
-from dijkstra_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
+from graph_visualizer.core.graph import graphs_equal
+from graph_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
 
 
 class PresetControls:

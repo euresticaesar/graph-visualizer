@@ -5,8 +5,8 @@ from conftest import wait_idle
 from PySide6.QtGui import QDesktopServices, QImage
 from PySide6.QtWidgets import QMessageBox
 
-from dijkstra_visualizer.export.composite_exporter import combine_phases
-from dijkstra_visualizer.export.image_exporter import export_graph, save_image
+from graph_visualizer.export.composite_exporter import combine_phases
+from graph_visualizer.export.image_exporter import export_graph, save_image
 
 
 @pytest.mark.parametrize("parallel", [False, True])

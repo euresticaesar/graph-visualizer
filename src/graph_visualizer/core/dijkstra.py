@@ -3,8 +3,8 @@ import math
 
 import networkx as nx
 
-from dijkstra_visualizer.core.graph import EdgeId, edge_id, ordered_arcs, validate_graph
-from dijkstra_visualizer.core.models import AlgorithmState, Comparison, StateView, tree_edges
+from graph_visualizer.core.graph import EdgeId, edge_id, ordered_arcs, validate_graph
+from graph_visualizer.core.models import AlgorithmState, Comparison, StateView, tree_edges
 
 
 def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False):
@@ -161,7 +161,7 @@ def reconstruct_edge_path(state: AlgorithmState, start: str, target: str) -> lis
 
 
 def route_description(state, start, target):
-    from dijkstra_visualizer.core.models import format_number
+    from graph_visualizer.core.models import format_number
 
     distance = (
         state.matrix[state.nodes.index(start)][state.nodes.index(target)]

@@ -5,8 +5,8 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QGraphicsItem
 
-from dijkstra_visualizer.ui.main_window import MainWindow
-from dijkstra_visualizer.ui.node_item import PATH
+from graph_visualizer.ui.main_window import MainWindow
+from graph_visualizer.ui.node_item import PATH
 
 
 def test_playback_controls_and_reset(window, qapp):
@@ -112,7 +112,7 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
 def test_failed_layout_save_restores_positions_and_history(window, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
-    from dijkstra_visualizer.ui import main_window
+    from graph_visualizer.ui import main_window
 
     warnings = []
     original = window.graph_view.positions()

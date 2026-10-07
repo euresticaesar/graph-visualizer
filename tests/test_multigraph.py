@@ -4,7 +4,7 @@ import random
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.core.dijkstra import (
+from graph_visualizer.core.dijkstra import (
     dijkstra_steps,
     reconstruct_edge_path,
     reconstruct_path,

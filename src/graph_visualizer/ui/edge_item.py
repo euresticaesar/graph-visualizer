@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsSimpleTextItem
 
-from dijkstra_visualizer.ui.node_item import PATH, NodeItem, format_distance
+from graph_visualizer.ui.node_item import PATH, NodeItem, format_distance
 
 
 class WeightLabel(QGraphicsSimpleTextItem):

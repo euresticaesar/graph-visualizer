@@ -4,7 +4,7 @@ from pathlib import Path
 
 import networkx as nx
 
-from dijkstra_visualizer.io.files import atomic_write_files
+from graph_visualizer.io.files import atomic_write_files
 
 PositionMap = dict[str, tuple[float, float]]
 

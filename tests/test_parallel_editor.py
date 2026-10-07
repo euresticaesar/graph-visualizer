@@ -2,8 +2,8 @@ import networkx as nx
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
-from dijkstra_visualizer.io.graph_io import load_graph
-from dijkstra_visualizer.ui.node_item import PATH
+from graph_visualizer.io.graph_io import load_graph
+from graph_visualizer.ui.node_item import PATH
 
 
 def test_parallel_edges_edit_delete_undo_and_reload(window):

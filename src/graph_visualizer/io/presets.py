@@ -8,9 +8,9 @@ from pathlib import Path
 
 import networkx as nx
 
-from dijkstra_visualizer.core.graph import edges_with_keys, normalize_id, validate_graph
-from dijkstra_visualizer.io.files import atomic_write_files
-from dijkstra_visualizer.io.layout_io import PositionMap
+from graph_visualizer.core.graph import edges_with_keys, normalize_id, validate_graph
+from graph_visualizer.io.files import atomic_write_files
+from graph_visualizer.io.layout_io import PositionMap
 
 
 @dataclass

@@ -1,8 +1,8 @@
 from PySide6.QtCore import QThread, Signal
 
-from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
-from dijkstra_visualizer.core.dijkstra import dijkstra_steps
-from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+from graph_visualizer.core.bellman_ford import bellman_ford_steps
+from graph_visualizer.core.dijkstra import dijkstra_steps
+from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
 
 
 class AlgorithmWorker(QThread):

@@ -4,10 +4,10 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenuBar, QMessageBox
 
-from dijkstra_visualizer.io.graph_io import load_graph
-from dijkstra_visualizer.io.layout_io import load_layout
-from dijkstra_visualizer.ui import main_window
-from dijkstra_visualizer.ui.main_window import MainWindow
+from graph_visualizer.io.graph_io import load_graph
+from graph_visualizer.io.layout_io import load_layout
+from graph_visualizer.ui import main_window
+from graph_visualizer.ui.main_window import MainWindow
 
 
 def assert_saved(window):

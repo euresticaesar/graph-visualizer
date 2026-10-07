@@ -1,8 +1,8 @@
 import pytest
 from conftest import wait_idle
 
-from dijkstra_visualizer.export import image_exporter
-from dijkstra_visualizer.ui.node_item import NodeItem
+from graph_visualizer.export import image_exporter
+from graph_visualizer.ui.node_item import NodeItem
 
 
 def data_contents(window):

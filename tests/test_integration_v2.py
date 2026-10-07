@@ -7,14 +7,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
-from dijkstra_visualizer.core.dijkstra import dijkstra_steps
-from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
-from dijkstra_visualizer.export import image_exporter
-from dijkstra_visualizer.io.presets import read_preset
-from dijkstra_visualizer.ui.graph_view import GraphView
+from graph_visualizer.core.bellman_ford import bellman_ford_steps
+from graph_visualizer.core.dijkstra import dijkstra_steps
+from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
+from graph_visualizer.export import image_exporter
+from graph_visualizer.io.presets import read_preset
+from graph_visualizer.ui.graph_view import GraphView
 
-EXAMPLES = Path("src/dijkstra_visualizer/examples")
+EXAMPLES = Path("src/graph_visualizer/examples")
 
 
 def test_playback_stops_on_every_context_change(window):

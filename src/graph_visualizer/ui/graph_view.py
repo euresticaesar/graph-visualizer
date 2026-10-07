@@ -6,12 +6,12 @@ from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsScene, QGraphicsView
 
-from dijkstra_visualizer.core.dijkstra import reconstruct_edge_path
-from dijkstra_visualizer.core.graph import EdgeId, edge_id, edges_with_keys
-from dijkstra_visualizer.core.models import DijkstraState
-from dijkstra_visualizer.io.layout_io import PositionMap
-from dijkstra_visualizer.ui.edge_item import EdgeItem
-from dijkstra_visualizer.ui.node_item import NodeItem
+from graph_visualizer.core.dijkstra import reconstruct_edge_path
+from graph_visualizer.core.graph import EdgeId, edge_id, edges_with_keys
+from graph_visualizer.core.models import DijkstraState
+from graph_visualizer.io.layout_io import PositionMap
+from graph_visualizer.ui.edge_item import EdgeItem
+from graph_visualizer.ui.node_item import NodeItem
 
 
 class GraphView(QGraphicsView):
@@ -38,7 +38,7 @@ class GraphView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
-        self.nodes: dict[int, NodeItem] = {}
+        self.nodes: dict[str, NodeItem] = {}
         self.edges: dict[EdgeId, EdgeItem] = {}
         self.set_graph(graph, positions)
         self.scene().selectionChanged.connect(self._selection_changed)
@@ -115,7 +115,7 @@ class GraphView(QGraphicsView):
         self._update_scene_rect()
 
     def apply_state(
-        self, state: DijkstraState | None, start: int, target: int, final: bool = False
+        self, state: DijkstraState | None, start: str, target: str, final: bool = False
     ) -> None:
         path_edges = (
             set(reconstruct_edge_path(state, start, target))
@@ -141,7 +141,7 @@ class GraphView(QGraphicsView):
             if state and state.algorithm != "Dijkstra":
                 item.state_caption = "sin mínimo finito" if node in state.affected else ""
                 if state.algorithm == "Floyd-Warshall":
-                    from dijkstra_visualizer.core.models import format_number
+                    from graph_visualizer.core.models import format_number
 
                     distance = state.matrix[state.nodes.index(start)][state.nodes.index(node)]
                     item.label.setText(format_number(distance))

@@ -5,10 +5,10 @@ from dataclasses import FrozenInstanceError
 import networkx as nx
 import pytest
 
-from dijkstra_visualizer.core.dijkstra import (
+from graph_visualizer.core.dijkstra import (
     dijkstra_steps as run_steps,
 )
-from dijkstra_visualizer.core.dijkstra import (
+from graph_visualizer.core.dijkstra import (
     reconstruct_path as path_of,
 )
 

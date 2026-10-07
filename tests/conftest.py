@@ -18,7 +18,7 @@ def qapp():
 
 @pytest.fixture
 def window(qapp, tmp_path):
-    from dijkstra_visualizer.ui.main_window import MainWindow
+    from graph_visualizer.ui.main_window import MainWindow
 
     data_dir = tmp_path / "data"
     shutil.copytree(Path(__file__).parent / "fixtures" / "sample", data_dir)

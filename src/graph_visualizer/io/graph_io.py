@@ -5,9 +5,9 @@ from pathlib import Path
 
 import networkx as nx
 
-from dijkstra_visualizer.core.graph import edges_with_keys, validate_graph
-from dijkstra_visualizer.io.files import atomic_write_files
-from dijkstra_visualizer.io.layout_io import PositionMap, serialize_layout
+from graph_visualizer.core.graph import edges_with_keys, validate_graph
+from graph_visualizer.io.files import atomic_write_files
+from graph_visualizer.io.layout_io import PositionMap, serialize_layout
 
 
 def _rows(path: Path, columns: list[str], optional_id: bool = False) -> list[dict[str, str]]:
@@ -28,7 +28,7 @@ def _rows(path: Path, columns: list[str], optional_id: bool = False) -> list[dic
 
 
 def _node_id(value: str, location: str) -> str:
-    from dijkstra_visualizer.core.graph import normalize_id
+    from graph_visualizer.core.graph import normalize_id
 
     return normalize_id(value)
 
@@ -38,7 +38,12 @@ def load_graph(nodes_path: Path, edges_path: Path) -> nx.MultiGraph:
     directed = False
     if metadata.exists():
         info = json.loads(metadata.read_text(encoding="utf-8"))
-        if info.get("version") != 1 or type(info.get("directed")) is not bool:
+        if (
+            not isinstance(info, dict)
+            or type(info.get("version")) is not int
+            or info.get("version") != 1
+            or type(info.get("directed")) is not bool
+        ):
             raise ValueError("Métadatos de grafo no válidos.")
         directed = info["directed"]
     graph = nx.MultiDiGraph() if directed else nx.MultiGraph()
@@ -84,7 +89,7 @@ def save_graph_data(data_dir: Path, graph: nx.Graph, positions: PositionMap) -> 
     writer.writerows((node,) for node in sorted(graph))
     writer = csv.writer(edges_stream)
     writer.writerow(["source", "target", "weight", "id"])
-    from dijkstra_visualizer.core.graph import edge_id
+    from graph_visualizer.core.graph import edge_id
 
     connections = sorted(
         (*edge_id(u, v, k, graph.is_directed()), d["weight"])
@@ -108,6 +113,12 @@ def initialize_graph_data(data_dir: Path) -> None:
     if any((data_dir / name).exists() for name in names):
         return
     example_dir = data_dir / "example"
-    atomic_write_files(
-        {data_dir / name: (example_dir / name).read_text(encoding="utf-8") for name in names}
-    )
+    if example_dir.exists():
+        atomic_write_files(
+            {data_dir / name: (example_dir / name).read_text(encoding="utf-8") for name in names}
+        )
+    else:
+        from graph_visualizer.io.presets import read_preset
+
+        preset = read_preset(Path(__file__).resolve().parents[1] / "examples" / "ejemplo_12.json")
+        save_graph_data(data_dir, preset.graph, preset.positions)

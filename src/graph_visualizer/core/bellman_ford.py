@@ -1,7 +1,7 @@
 import math
 
-from dijkstra_visualizer.core.graph import ordered_arcs, validate_graph
-from dijkstra_visualizer.core.models import AlgorithmState, Comparison, StateView
+from graph_visualizer.core.graph import ordered_arcs, validate_graph
+from graph_visualizer.core.models import AlgorithmState, Comparison, StateView
 
 
 def bellman_ford_steps(graph, start, *, early_stop=False):
