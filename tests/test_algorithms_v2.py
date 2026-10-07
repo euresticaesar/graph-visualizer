@@ -92,3 +92,46 @@ def test_bellman_reference_and_early_stop():
     assert dict(bellman_ford_steps(g, "z", early_stop=True)[-1].distances) == dict(
         states[-1].distances
     )
+
+
+def test_floyd_all_pairs_and_persistent_matrices():
+    from pathlib import Path
+
+    from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+    from dijkstra_visualizer.io.presets import read_preset
+    from dijkstra_visualizer.ui.state_panel import matrix_style
+
+    g = read_preset(Path("src/dijkstra_visualizer/examples/floyd_warshall.json")).graph
+    states = floyd_warshall_steps(g, detailed=True)
+    assert len([s for s in states if s.comparison]) == len(g) ** 3
+    reference = dict(nx.floyd_warshall(g))
+    final = states[-1]
+    for i, u in enumerate(final.nodes):
+        for j, v in enumerate(final.nodes):
+            assert final.matrix[i][j] == reference[u][v]
+            edges = reconstruct_edge_path(final, u, v)
+            assert sum(g[a][b][k]["weight"] for a, b, k in edges) == reference[u][v]
+    unchanged = next(i for i, s in enumerate(states) if s.comparison and not s.comparison.improved)
+    assert states[unchanged].matrix is states[unchanged - 1].matrix
+    changed = next(s for s in states if s.changed)
+    assert matrix_style(changed, *next(iter(changed.changed)))[0] == "#fef08a"
+    assert states[1].changed == frozenset()
+    assert states[0].matrix[0][0] == 0
+    assert len(StateView(states.events, False)) == len(g) + 2
+
+
+def test_floyd_negative_cycle_pairs_and_exact_parallel_edge():
+    from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+
+    g = nx.MultiDiGraph()
+    g.add_weighted_edges_from([("A", "B", 1), ("B", "C", -2), ("C", "B", 1), ("C", "D", 1)])
+    g.add_edge("X", "Y", key=3, weight=2)
+    g.add_edge("X", "Y", key=1, weight=2)
+    final = floyd_warshall_steps(g)[-1]
+    idx = {u: i for i, u in enumerate(final.nodes)}
+    assert final.matrix[idx["A"]][idx["D"]] == -math.inf
+    assert final.matrix[idx["A"]][idx["A"]] == 0
+    assert reconstruct_path(final, "A", "D") == []
+    assert reconstruct_path(final, "X", "Y") == ["X", "Y"]
+    assert reconstruct_edge_path(final, "X", "Y") == [("X", "Y", 1)]
+    assert reconstruct_path(final, "Y", "X") == []

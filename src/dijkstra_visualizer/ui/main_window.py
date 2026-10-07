@@ -257,11 +257,14 @@ class MainWindow(PresetControls, QMainWindow):
         self.export_notice.hide()
         graph_column.addWidget(self.export_notice)
         graph_column.addWidget(self.graph_view, 1)
-        from dijkstra_visualizer.ui.state_panel import StatePanel
+        from dijkstra_visualizer.ui.state_panel import MatrixPanel, StatePanel
 
         self.state_panel = StatePanel()
         self.state_panel.hide()
         graph_column.addWidget(self.state_panel, 1)
+        self.matrix_panel = MatrixPanel()
+        self.matrix_panel.hide()
+        graph_column.addWidget(self.matrix_panel, 1)
         graph_column.addLayout(export_row)
         row.addWidget(sidebar)
         row.addWidget(graph_panel, 1)
@@ -274,7 +277,7 @@ class MainWindow(PresetControls, QMainWindow):
         controls.setContentsMargins(0, 12, 4, 8)
         controls.setSpacing(10)
         self.algorithm_combo = QComboBox()
-        self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford"])
+        self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford", "Floyd-Warshall"])
         self.algorithm_combo.currentTextChanged.connect(self.algorithm_changed)
         controls.addWidget(self.algorithm_combo)
         self.early_stop = QCheckBox("Terminar tras una pasada sin cambios")
@@ -286,8 +289,8 @@ class MainWindow(PresetControls, QMainWindow):
             self.target_combo.addItem(f"Nodo {node}", node)
         self.target_combo.setCurrentIndex(self.target_combo.count() - 1)
         for label, combo in (
-            ("Nodo de inicio", self.start_combo),
-            ("Nodo de destino", self.target_combo),
+            ("Origen (Floyd: solo consulta de ruta)", self.start_combo),
+            ("Destino (consulta de ruta)", self.target_combo),
         ):
             controls.addWidget(QLabel(label))
             controls.addWidget(combo)
@@ -663,7 +666,13 @@ class MainWindow(PresetControls, QMainWindow):
 
     def initialize(self) -> None:
         try:
-            if self.algorithm_combo.currentText() == "Bellman-Ford":
+            if self.algorithm_combo.currentText() == "Floyd-Warshall":
+                from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
+
+                self.states = floyd_warshall_steps(
+                    self.graph, detailed=self.detail_checkbox.isChecked()
+                )
+            elif self.algorithm_combo.currentText() == "Bellman-Ford":
                 from dijkstra_visualizer.core.bellman_ford import bellman_ford_steps
 
                 self.states = bellman_ford_steps(
@@ -677,7 +686,7 @@ class MainWindow(PresetControls, QMainWindow):
             QMessageBox.warning(self, "No se pudo iniciar el algoritmo", str(error))
             return
         self.graph_view.set_editable(False)
-        self.start_combo.setEnabled(False)
+        self.start_combo.setEnabled(self.algorithm_combo.currentText() == "Floyd-Warshall")
         self.target_combo.setEnabled(self.algorithm_combo.currentText() != "Dijkstra")
         self.run_button.setEnabled(False)
         self.reset_button.setEnabled(True)
@@ -698,6 +707,7 @@ class MainWindow(PresetControls, QMainWindow):
         bellman = self.algorithm_combo.currentText() == "Bellman-Ford"
         self.early_stop.setVisible(bellman)
         self.detail_checkbox.setVisible(not bellman)
+        self.detail_checkbox.setChecked(self.algorithm_combo.currentText() != "Floyd-Warshall")
         self.run_button.setText("Iniciar " + self.algorithm_combo.currentText())
 
     def change_detail(self):
@@ -714,6 +724,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.state_index = index
         state = self.states[index]
         self.state_panel.show_state(self.graph, state)
+        self.matrix_panel.show_state(state)
         final = index == len(self.states) - 1
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
@@ -731,6 +742,7 @@ class MainWindow(PresetControls, QMainWindow):
             action.setEnabled(False)
         self.states = []
         self.state_panel.hide()
+        self.matrix_panel.hide()
         self.state_index = 0
         self.graph_view.set_editable(True)
         self.graph_view.apply_state(None, self.start, self.target)

@@ -119,13 +119,19 @@ class GraphView(QGraphicsView):
     ) -> None:
         path_edges = (
             set(reconstruct_edge_path(state, start, target))
-            if state is not None and final
+            if state is not None and (final or state.algorithm == "Floyd-Warshall")
             else set()
         )
         for node, item in self.nodes.items():
             item.set_state(
-                state.distances[node] if state else math.inf,
-                state.predecessors[node] if state else None,
+                (
+                    state.matrix[state.nodes.index(start)][state.nodes.index(node)]
+                    if state.algorithm == "Floyd-Warshall"
+                    else state.distances[node]
+                )
+                if state
+                else math.inf,
+                state.predecessors.get(node) if state else None,
                 state is not None and node in state.visited,
                 state is not None and node == state.current_node,
                 node == start,
