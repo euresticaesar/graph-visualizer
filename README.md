@@ -25,25 +25,27 @@ PySide6 necesita un entorno gráfico. Para pruebas sin pantalla se utiliza `QT_Q
 
 ## Edición del grafo
 
-En **Editar grafo** puedes agregar, renombrar y eliminar nodos, cambiar pesos y crear conexiones paralelas. Cada grafo es dirigido o no dirigido; no se mezclan ambos tipos.
+En **Editar** puedes agregar, renombrar y eliminar nodos, cambiar pesos y crear conexiones paralelas. Los controles se agrupan en tarjetas de **Tipo de grafo**, **Nodos** y **Conexiones y pesos**. Cada grafo es dirigido o no dirigido; no se mezclan ambos tipos.
 
 - **IDs:** strings no vacíos; se eliminan espacios exteriores y se distinguen mayúsculas (`A` y `a` son nodos diferentes). Letras, nombres, comas, comillas y números escritos como texto son válidos. No existe un atributo numérico adicional de “valor”. Se rechazan duplicados después de normalizar espacios.
 - **Orden:** lexicográfico por ID; `"10"` precede a `"2"`. Se usa en selectores, matrices y desempates.
 - **Pesos:** números finitos, incluido cero. Los negativos solo se permiten en grafos dirigidos. Se rechazan NaN, infinitos y conexiones de un nodo consigo mismo.
-- **Identidad:** una conexión se identifica por sus extremos y su clave entera no negativa. En un grafo dirigido `(u,v,id)` es distinto de `(v,u,id)`. Las claves pueden repetirse en pares diferentes. Los dibujos muestran peso y `#id`; las curvas separan paralelas y sentidos opuestos.
+- **Identidad:** una conexión se identifica por sus extremos y su clave entera no negativa. En un grafo dirigido `(u,v,id)` es distinto de `(v,u,id)`. Las claves pueden repetirse en pares diferentes. Los dibujos muestran solo el peso inicialmente; activa **IDs de conexiones** encima del lienzo para añadir `#id`. La identidad sigue disponible en el tooltip, el editor y las tablas. Las curvas separan paralelas y sentidos opuestos.
 - **Cambio de tipo:** no dirigido → dirigido crea dos arcos por conexión con la misma clave. Dirigido → no dirigido conserva cada arco como una conexión; si las claves del par chocan, asigna la siguiente clave libre. Rechaza la conversión si hay pesos negativos. Nunca fusiona conexiones silenciosamente. Puedes deshacer la conversión.
 
 Gestos: doble clic en el fondo agrega un nodo; arrastrar su centro lo mueve; arrastrar el borde hasta otro nodo crea una conexión; clic en una conexión o su peso permite editarla. La rueda cambia el zoom, arrastrar el fondo desplaza la vista y **Ajustar vista** / `Ctrl+0` encuadra el grafo.
+
+**Gestos y ayuda** despliega las instrucciones sobre el lienzo; **Colores y notación** abre la leyenda en la barra izquierda. Ambas comienzan plegadas para dejar más espacio al grafo. Los toggles de etiquetas de estado e IDs de conexiones conservan su selección durante la sesión, incluidos cambios de algoritmo, edición, deshacer/rehacer y cargas de presets; no modifican los datos del grafo ni el preset.
 
 Los cambios se guardan automáticamente. **↶ / ↷**, `Ctrl+Z` y `Ctrl+Y` conservan hasta 100 acciones, incluidos movimientos, cambios de tipo y cargas de presets. Durante la ejecución se bloquea la edición; **Volver a editar** detiene la reproducción y conserva el historial.
 
 ## Ejecución y navegación
 
-Elige el algoritmo y sus opciones, luego **Iniciar**. La explicación, la fase, la iteración y la posición aparecen encima del grafo. Puedes avanzar, retroceder, ir al inicio/final, escribir un número de paso o saltar a una fase/iteración. **Reproducir / Pausar** utiliza un solo temporizador; la velocidad se expresa en milisegundos por paso.
+La pestaña **Recorrido** agrupa **Configurar recorrido**, **Explorar pasos** y **Reproducción automática**. Elige el algoritmo y sus opciones, luego **Iniciar**. Durante la ejecución, la explicación, la fase, la iteración y la posición aparecen en una tarjeta encima del grafo. Puedes avanzar, retroceder, ir al inicio/final con **⇤ / ⇥**, escribir un número de paso o saltar a una fase/iteración. **Reproducir / Pausar** utiliza un solo temporizador; el intervalo se expresa en milisegundos por paso.
 
 La reproducción se detiene al llegar al final, cambiar de algoritmo o detalle, cargar un preset, abrir otra pestaña, exportar o volver a editar. Cambiar de detalle navega sobre los mismos eventos ya calculados y elige una posición equivalente, sin recalcular ni volver obligatoriamente al inicio.
 
-Los paneles de grafo y tablas se pueden redimensionar arrastrando su separador. Las tablas y matrices tienen desplazamiento y encabezados. Con grafos grandes, usa zoom, desplazamiento y el separador para revisar los detalles.
+Bellman-Ford muestra sus tablas y Floyd-Warshall sus matrices en un **panel derecho** que aparece al iniciar el algoritmo. Puedes ajustar el ancho arrastrando su separador con el grafo y repartir la altura entre las dos tablas o matrices. El panel se oculta al volver a editar o usar Dijkstra. Las tablas y matrices tienen desplazamiento y encabezados. Con grafos grandes, usa zoom, desplazamiento y los separadores para revisar los detalles.
 
 ### Dijkstra
 
@@ -80,7 +82,7 @@ La fase final identifica todos los pares que pueden atravesar un ciclo negativo,
 
 ## Presets
 
-La pestaña **Presets** permite **guardar como nuevo, cargar, actualizar explícitamente, renombrar, duplicar, eliminar, importar y exportar JSON**. Exportar JSON guarda el trabajo actual; importar valida y crea una copia personal. Los ejemplos incluidos son de solo lectura: duplícalos para personalizarlos.
+La pestaña **Presets** agrupa la biblioteca, el guardado del trabajo, la organización y los archivos JSON. Permite **guardar como nuevo, cargar, actualizar explícitamente, renombrar, duplicar, eliminar, importar y exportar JSON**. Exportar JSON guarda el trabajo actual; importar valida y crea una copia personal. Los ejemplos incluidos son de solo lectura: duplícalos para personalizarlos.
 
 Se incluyen los ejemplos de 12 y 30 nodos y los grafos de las referencias de Bellman-Ford (cinco vértices dirigidos, origen z) y Floyd-Warshall (ocho vértices no dirigidos).
 
@@ -121,11 +123,13 @@ Las escrituras del conjunto de archivos preparan copias anteriores y restauran l
 
 ## Exportaciones PNG
 
-Exporta el **paso actual**, **todos los pasos separados**, **imágenes conjuntas** o el **resultado final**. Por defecto se usa el detalle visible; para Dijkstra y Floyd-Warshall puedes elegir resumen o subpasos sin modificar la navegación en pantalla.
+La pestaña **Exportar** reúne el formato, los pasos que se exportan y la carpeta de salida. Exporta el **paso actual**, **todos los pasos separados**, **imágenes conjuntas** o el **resultado final**. Por defecto se usa el detalle visible; para Dijkstra y Floyd-Warshall puedes elegir resumen o subpasos sin modificar la navegación en pantalla.
 
 **Didáctico:** algoritmo, fase, numeración, grafo, explicación y leyenda. Bellman-Ford incluye lista completa de arcos y tabla; Floyd-Warshall incluye ambas matrices. Los resultados finales incluyen la ruta consultada y su costo cuando son válidos, o la explicación de ausencia de ruta/ciclo negativo.
 
-**Simple:** únicamente el grafo, con IDs, pesos, claves, flechas y resaltados. No incluye títulos, etiquetas de distancia/predecesor, leyendas, tablas ni matrices. En Floyd-Warshall conserva la ruta consultada cuando existe; para compartir las matrices usa el estilo didáctico.
+**Simple:** únicamente el grafo, con IDs de nodos, pesos, flechas y resaltados. No incluye títulos, etiquetas de distancia/predecesor, leyendas, tablas ni matrices. En Floyd-Warshall conserva la ruta consultada cuando existe; para compartir las matrices usa el estilo didáctico.
+
+Ambos estilos respetan **IDs de conexiones**: con el toggle desactivado las aristas muestran solo el peso; activado, añaden `#id`. Las tablas didácticas conservan los IDs para identificar cada arco.
 
 Cada operación crea una carpeta con fecha y hora. Las composiciones conservan el tamaño legible de sus imágenes, sin reducirlas a miniaturas: se dividen en archivos `conjunta_0001.png`, etc., con hasta cuatro pasos por página y un presupuesto de 24 megapíxeles/12 000 píxeles de alto. Una imagen individual más grande ocupa su propia página. El máximo individual es 100 megapíxeles; si un layout extremadamente extendido lo excede, se solicita reducirlo. El aviso de exportación permite abrir su carpeta.
 

@@ -8,6 +8,7 @@ from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -37,6 +38,8 @@ from graph_visualizer.ui.graph_editor import GraphEditor
 from graph_visualizer.ui.graph_view import GraphView
 from graph_visualizer.ui.node_combo_box import NodeComboBox
 from graph_visualizer.ui.preset_controls import PresetControls
+from graph_visualizer.ui.section_card import SectionCard
+from graph_visualizer.ui.state_panel import MatrixPanel, StatePanel
 
 
 class ControlTabs(QTabWidget):
@@ -110,7 +113,7 @@ class MainWindow(PresetControls, QMainWindow):
         card = QFrame()
         card.setObjectName("controlCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 12)
+        layout.setContentsMargins(8, 6, 8, 6)
         scroll = QScrollArea()
         scroll.setObjectName("controlScroll")
         scroll.viewport().setObjectName("controlViewport")
@@ -132,8 +135,8 @@ class MainWindow(PresetControls, QMainWindow):
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(365)
         controls = QVBoxLayout(sidebar)
-        controls.setContentsMargins(20, 20, 20, 16)
-        controls.setSpacing(12)
+        controls.setContentsMargins(16, 18, 16, 14)
+        controls.setSpacing(10)
         title = QLabel("Caminos mínimos")
         title.setObjectName("title")
         controls.addWidget(title)
@@ -144,7 +147,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.tabs.tabBar().setExpanding(True)
         self.tabs.addTab(self._scroll_page(self._algorithm_controls()), "Recorrido")
         self.editor = GraphEditor(self.graph)
-        self.tabs.addTab(self._scroll_page(self.editor), "Editar grafo")
+        self.tabs.addTab(self._scroll_page(self.editor), "Editar")
         self.editor.graph_type_requested.connect(self.change_graph_type)
         self.editor.add_node_requested.connect(self.add_node)
         self.editor.rename_node_requested.connect(self.rename_node)
@@ -156,74 +159,19 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
         self.graph_view.connection_requested.connect(self._connect_nodes)
         self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
+        self.tabs.addTab(self._scroll_page(self._export_controls()), "Exportar")
         self.tabs.currentChanged.connect(lambda index: self.stop_playback() if index else None)
         controls.addWidget(self.tabs, 1)
-
-        self.state_labels_checkbox = QCheckBox("Mostrar etiquetas de estado")
-        self.state_labels_checkbox.setChecked(True)
-        self.state_labels_checkbox.setToolTip(
-            "Oculta o muestra los estados de los nodos. "
-            "INICIO, DESTINO y las distancias permanecen."
-        )
-        self.state_labels_checkbox.toggled.connect(self.graph_view.set_state_labels_visible)
-        controls.addWidget(self.state_labels_checkbox)
-
-        self.legend_grid = QGridLayout()
-        self.legend_grid.setHorizontalSpacing(16)
-        self.legend_grid.setVerticalSpacing(8)
-        for index, (symbol, color, text) in enumerate(
-            [
-                ("●", "#64748b", "Sin alcanzar"),
-                ("●", "#b48412", "Tentativo"),
-                ("●", "#329758", "Fijado (Dijkstra)"),
-                ("●", "#18794e", "Nodo actual / k"),
-                ("━", "#e69b00", "Comparación"),
-                ("━", "#087e8b", "Ruta final"),
-            ]
-        ):
-            label = QLabel(f'<span style="color:{color}">{symbol}</span> {text}')
-            self.legend_grid.addWidget(label, index // 2, index % 2)
-        self.legend_grid.setColumnStretch(0, 1)
-        self.legend_grid.setColumnStretch(1, 1)
-        controls.addLayout(self.legend_grid)
-        self.notation = notation = QLabel(
-            "[distancia, predecesor]\nNegritas: mejora en el paso actual"
-        )
-        notation.setObjectName("hint")
-        notation.setWordWrap(True)
-        controls.addWidget(notation)
-        export_row = QHBoxLayout()
-        export_row.addWidget(QLabel("Exportar:"))
-        self.export_actions: list[QAction] = []
-        self.export_buttons: list[QToolButton] = []
-        for _index, (label, kind) in enumerate(
-            [
-                ("Paso actual", "current"),
-                ("Pasos separados", "all"),
-                ("Imagen conjunta", "combined"),
-                ("Resultado final", "final"),
-            ]
-        ):
-            action = self._action(label, lambda checked=False, kind=kind: self.export(kind))
-            action.setToolTip("Inicia un algoritmo para exportar imágenes")
-            self.export_actions.append(action)
-            button = self._action_button(action)
-            self.export_buttons.append(button)
-            export_row.addWidget(button, 1)
-        footer = QHBoxLayout()
-        self.output_button = QPushButton("Abrir carpeta")
-        self.output_button.setToolTip("Abrir la carpeta de exportaciones")
-        self.output_button.clicked.connect(self.open_output_folder)
+        self._build_legend(controls)
         self.exit_button = QPushButton("Salir")
         self.exit_button.setShortcut("Ctrl+Q")
         self.exit_button.clicked.connect(self.close)
-        footer.addWidget(self.output_button, 2)
-        footer.addWidget(self.exit_button, 1)
-        controls.addLayout(footer)
+        controls.addWidget(self.exit_button)
 
         graph_panel = QWidget()
         graph_column = QVBoxLayout(graph_panel)
         graph_column.setContentsMargins(14, 12, 14, 12)
+        graph_column.setSpacing(10)
         toolbar = QHBoxLayout()
         self.graph_info = QLabel()
         toolbar.addWidget(self.graph_info, 1)
@@ -241,12 +189,43 @@ class MainWindow(PresetControls, QMainWindow):
         self.fit_button.clicked.connect(self.graph_view.fit_graph)
         toolbar.addWidget(self.fit_button)
         graph_column.addLayout(toolbar)
+
+        display_row = QHBoxLayout()
+        self.state_labels_checkbox = QCheckBox("Etiquetas de estado")
+        self.state_labels_checkbox.setChecked(True)
+        self.state_labels_checkbox.setToolTip(
+            "Muestra los estados de los nodos; INICIO, DESTINO y distancias permanecen visibles."
+        )
+        self.state_labels_checkbox.toggled.connect(self.graph_view.set_state_labels_visible)
+        display_row.addWidget(self.state_labels_checkbox)
+        self.edge_ids_checkbox = QCheckBox("IDs de conexiones")
+        self.edge_ids_checkbox.setToolTip(
+            "Muestra #ID junto al peso para distinguir conexiones paralelas. "
+            "También se aplica a las exportaciones PNG."
+        )
+        self.edge_ids_checkbox.toggled.connect(self.graph_view.set_edge_ids_visible)
+        display_row.addWidget(self.edge_ids_checkbox)
+        display_row.addStretch()
+        self.help_button = QToolButton()
+        self.help_button.setText("Gestos y ayuda")
+        self.help_button.setCheckable(True)
+        display_row.addWidget(self.help_button)
+        graph_column.addLayout(display_row)
         self.view_hint = QLabel()
         self.view_hint.setObjectName("hint")
         self.view_hint.setWordWrap(True)
+        self.view_hint.hide()
+        self.help_button.toggled.connect(self.view_hint.setVisible)
         graph_column.addWidget(self.view_hint)
-        graph_column.addWidget(self.step_label)
-        graph_column.addWidget(self.detail_label)
+
+        self.execution_card = QFrame()
+        self.execution_card.setObjectName("executionCard")
+        execution_text = QVBoxLayout(self.execution_card)
+        execution_text.setContentsMargins(14, 10, 14, 12)
+        execution_text.setSpacing(6)
+        execution_text.addWidget(self.step_label)
+        execution_text.addWidget(self.detail_label)
+        graph_column.addWidget(self.execution_card)
         self.export_notice = QFrame()
         self.export_notice.setObjectName("exportNotice")
         notice_row = QHBoxLayout(self.export_notice)
@@ -271,109 +250,224 @@ class MainWindow(PresetControls, QMainWindow):
         notice_row.addWidget(dismiss)
         self.export_notice.hide()
         graph_column.addWidget(self.export_notice)
-        self.visual_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.visual_splitter.addWidget(self.graph_view)
-        graph_column.addWidget(self.visual_splitter, 1)
-        from graph_visualizer.ui.state_panel import MatrixPanel, StatePanel
 
+        self.visual_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.visual_splitter.setChildrenCollapsible(False)
+        self.graph_view.setMinimumWidth(280)
+        self.visual_splitter.addWidget(self.graph_view)
+        self.results_panel = QFrame()
+        self.results_panel.setObjectName("resultsPanel")
+        self.results_panel.setMinimumWidth(280)
+        results_column = QVBoxLayout(self.results_panel)
+        results_column.setContentsMargins(12, 12, 12, 12)
+        results_column.setSpacing(8)
+        self.results_title = QLabel()
+        self.results_title.setObjectName("section")
+        results_column.addWidget(self.results_title)
         self.state_panel = StatePanel()
         self.state_panel.hide()
-        self.visual_splitter.addWidget(self.state_panel)
+        results_column.addWidget(self.state_panel, 1)
         self.matrix_panel = MatrixPanel()
         self.matrix_panel.hide()
-        self.visual_splitter.addWidget(self.matrix_panel)
-        export_options = QHBoxLayout()
-        self.export_style = QComboBox()
-        self.export_style.addItems(["Didáctico", "Simple (solo grafo)"])
-        self.export_detail = QComboBox()
-        self.export_detail.addItems(["Detalle visible", "Resumen", "Subpasos"])
-        export_options.addWidget(QLabel("Estilo de exportación"))
-        export_options.addWidget(self.export_style)
-        export_options.addWidget(self.export_detail)
-        graph_column.addLayout(export_options)
-        graph_column.addLayout(export_row)
+        results_column.addWidget(self.matrix_panel, 1)
+        self.results_panel.hide()
+        self.visual_splitter.addWidget(self.results_panel)
+        self.visual_splitter.setStretchFactor(0, 1)
+        self.visual_splitter.setStretchFactor(1, 0)
+        graph_column.addWidget(self.visual_splitter, 1)
         row.addWidget(sidebar)
         row.addWidget(graph_panel, 1)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Grafo cargado. Los cambios se guardan automáticamente.")
 
+    def _build_legend(self, controls: QVBoxLayout) -> None:
+        self.legend_button = QToolButton()
+        self.legend_button.setText("Colores y notación")
+        self.legend_button.setCheckable(True)
+        self.legend_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.legend_button.setArrowType(Qt.ArrowType.RightArrow)
+        self.legend_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        controls.addWidget(self.legend_button)
+        legend = QFrame()
+        legend.setObjectName("sectionCard")
+        column = QVBoxLayout(legend)
+        self.legend_grid = QGridLayout()
+        self.legend_grid.setHorizontalSpacing(12)
+        self.legend_grid.setVerticalSpacing(8)
+        for index, (symbol, color, text) in enumerate(
+            [
+                ("●", "#64748b", "Sin alcanzar"),
+                ("●", "#b48412", "Tentativo"),
+                ("●", "#329758", "Fijado (Dijkstra)"),
+                ("●", "#18794e", "Nodo actual / k"),
+                ("━", "#e69b00", "Comparación"),
+                ("━", "#087e8b", "Ruta final"),
+            ]
+        ):
+            label = QLabel(f'<span style="color:{color}">{symbol}</span> {text}')
+            self.legend_grid.addWidget(label, index // 2, index % 2)
+        column.addLayout(self.legend_grid)
+        self.notation = QLabel("[distancia, predecesor] · Negritas: mejora")
+        self.notation.setObjectName("hint")
+        self.notation.setWordWrap(True)
+        column.addWidget(self.notation)
+        legend.hide()
+        self.legend_button.toggled.connect(legend.setVisible)
+        self.legend_button.toggled.connect(
+            lambda checked: self.legend_button.setArrowType(
+                Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
+            )
+        )
+        controls.addWidget(legend)
+
     def _algorithm_controls(self) -> QWidget:
         page = QWidget()
         controls = QVBoxLayout(page)
-        controls.setContentsMargins(0, 12, 4, 8)
-        controls.setSpacing(10)
+        controls.setContentsMargins(0, 4, 0, 4)
+        controls.setSpacing(12)
+        setup = SectionCard("1. Configurar recorrido")
         self.algorithm_combo = QComboBox()
         self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford", "Floyd-Warshall"])
         self.algorithm_combo.currentTextChanged.connect(self.algorithm_changed)
-        controls.addWidget(self.algorithm_combo)
-        self.early_stop = QCheckBox("Terminar tras una pasada sin cambios")
-        self.early_stop.setVisible(False)
-        controls.addWidget(self.early_stop)
+        setup.content.addWidget(self.algorithm_combo)
+        self.algorithm_hint = QLabel("Ruta mínima entre el origen y el destino.")
+        self.algorithm_hint.setObjectName("hint")
+        self.algorithm_hint.setWordWrap(True)
+        setup.content.addWidget(self.algorithm_hint)
         self.start_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         for node in sorted(self.graph):
             self.start_combo.addItem(f"Nodo {node}", node)
             self.target_combo.addItem(f"Nodo {node}", node)
         self.target_combo.setCurrentIndex(self.target_combo.count() - 1)
+        selection = QFormLayout()
+        self.start_label, self.target_label = QLabel("Origen"), QLabel("Destino")
         for label, combo in (
-            ("Origen (Floyd: solo consulta de ruta)", self.start_combo),
-            ("Destino (consulta de ruta)", self.target_combo),
+            (self.start_label, self.start_combo),
+            (self.target_label, self.target_combo),
         ):
-            controls.addWidget(QLabel(label))
-            controls.addWidget(combo)
+            selection.addRow(label, combo)
             combo.currentIndexChanged.connect(self._selection_changed)
+        setup.content.addLayout(selection)
+        self.early_stop = QCheckBox("Terminar si una pasada no mejora")
+        self.early_stop.setToolTip("Detiene Bellman-Ford tras una pasada completa sin cambios.")
+        self.early_stop.setVisible(False)
+        setup.content.addWidget(self.early_stop)
         self.detail_checkbox = QCheckBox("Por comparación")
         self.detail_checkbox.setChecked(True)
         self.detail_checkbox.toggled.connect(self.change_detail)
-        controls.addWidget(self.detail_checkbox)
+        setup.content.addWidget(self.detail_checkbox)
         self.run_button = QPushButton("Iniciar Dijkstra")
         self.run_button.setObjectName("primary")
         self.run_button.clicked.connect(self.initialize)
-        controls.addWidget(self.run_button)
-        navigation = QHBoxLayout()
+        setup.content.addWidget(self.run_button)
+        controls.addWidget(setup)
+
+        navigation = SectionCard("2. Explorar pasos")
+        buttons = QGridLayout()
         self.previous_button, self.next_button = (
             QPushButton("← Anterior"),
             QPushButton("Siguiente →"),
         )
         self.previous_button.clicked.connect(lambda: self.show_state(self.state_index - 1))
         self.next_button.clicked.connect(lambda: self.show_state(self.state_index + 1))
-        navigation.addWidget(self.previous_button)
-        navigation.addWidget(self.next_button)
-        controls.addLayout(navigation)
-        navigation2 = QHBoxLayout()
-        self.first_button = QPushButton("Inicio")
-        self.last_button = QPushButton("Final")
+        self.first_button, self.last_button = QPushButton("⇤"), QPushButton("⇥")
+        for button, text in ((self.first_button, "Primer paso"), (self.last_button, "Último paso")):
+            button.setAccessibleName(text)
+            button.setToolTip(text)
+            button.setFixedWidth(34)
         self.first_button.clicked.connect(lambda: self.show_state(0))
         self.last_button.clicked.connect(lambda: self.show_state(len(self.states) - 1))
-        navigation2.addWidget(self.first_button)
-        navigation2.addWidget(self.last_button)
-        controls.addLayout(navigation2)
+        self.previous_button.setText("Anterior")
+        self.next_button.setText("Siguiente")
+        buttons.addWidget(self.first_button, 0, 0)
+        buttons.addWidget(self.previous_button, 0, 1)
+        buttons.addWidget(self.next_button, 0, 2)
+        buttons.addWidget(self.last_button, 0, 3)
+        navigation.content.addLayout(buttons)
+        jumps = QFormLayout()
         self.jump_step = QSpinBox()
-        self.jump_step.setPrefix("Paso ")
         self.jump_step.valueChanged.connect(self.show_state)
-        controls.addWidget(self.jump_step)
+        jumps.addRow("Paso", self.jump_step)
         self.jump_phase = QComboBox()
         self.jump_phase.activated.connect(
             lambda index: self.show_state(self.jump_phase.itemData(index))
         )
-        controls.addWidget(self.jump_phase)
+        jumps.addRow("Fase", self.jump_phase)
+        navigation.content.addLayout(jumps)
+        controls.addWidget(navigation)
+
+        playback = SectionCard("3. Reproducción automática")
         self.play_button = QPushButton("▶ Reproducir")
         self.play_button.clicked.connect(self.toggle_playback)
-        controls.addWidget(self.play_button)
+        playback.content.addWidget(self.play_button)
         self.speed = QSpinBox()
         self.speed.setRange(50, 10000)
         self.speed.setValue(800)
         self.speed.setSuffix(" ms / paso")
         self.speed.valueChanged.connect(lambda value: self.play_timer.setInterval(value))
-        controls.addWidget(self.speed)
+        speed_form = QFormLayout()
+        speed_form.addRow("Intervalo", self.speed)
+        playback.content.addLayout(speed_form)
+        controls.addWidget(playback)
         self.reset_button = QPushButton("Volver a editar")
         self.reset_button.clicked.connect(self.reset)
         controls.addWidget(self.reset_button)
         self.step_label = QLabel()
         self.step_label.setObjectName("step")
-        # Execution text lives above the graph, visible without sidebar scrolling.
+        self.step_label.setWordWrap(True)
         self.detail_label = QLabel()
         self.detail_label.setWordWrap(True)
+        self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        controls.addStretch()
+        return page
 
+    def _export_controls(self) -> QWidget:
+        page = QWidget()
+        controls = QVBoxLayout(page)
+        controls.setContentsMargins(0, 4, 0, 4)
+        controls.setSpacing(12)
+        options = SectionCard("Formato PNG", "Exporta los estados del algoritmo iniciado.")
+        self.export_style = QComboBox()
+        self.export_style.addItems(["Didáctico", "Simple (solo grafo)"])
+        self.export_detail = QComboBox()
+        self.export_detail.addItems(["Detalle visible", "Resumen", "Subpasos"])
+        form = QFormLayout()
+        form.addRow("Estilo", self.export_style)
+        form.addRow("Pasos", self.export_detail)
+        options.content.addLayout(form)
+        hint = QLabel(
+            "Didáctico incluye explicación, leyenda y tablas. "
+            "Simple muestra el grafo. Se respeta la visibilidad de los IDs de conexiones."
+        )
+        hint.setObjectName("hint")
+        hint.setWordWrap(True)
+        options.content.addWidget(hint)
+        controls.addWidget(options)
+        images = SectionCard("Qué exportar")
+        buttons = QGridLayout()
+        self.export_actions: list[QAction] = []
+        self.export_buttons: list[QToolButton] = []
+        for index, (label, kind) in enumerate(
+            [
+                ("Paso actual", "current"),
+                ("Pasos separados", "all"),
+                ("Imagen conjunta", "combined"),
+                ("Resultado final", "final"),
+            ]
+        ):
+            action = self._action(label, lambda checked=False, kind=kind: self.export(kind))
+            action.setToolTip("Inicia un algoritmo para exportar imágenes")
+            self.export_actions.append(action)
+            button = self._action_button(action)
+            self.export_buttons.append(button)
+            buttons.addWidget(button, index // 2, index % 2)
+        images.content.addLayout(buttons)
+        controls.addWidget(images)
+        destination = SectionCard("Archivos generados", "Cada exportación crea su propia carpeta.")
+        self.output_button = QPushButton("Abrir carpeta de exportaciones")
+        self.output_button.clicked.connect(self.open_output_folder)
+        destination.content.addWidget(self.output_button)
+        controls.addWidget(destination)
         controls.addStretch()
         return page
 
@@ -390,19 +484,32 @@ class MainWindow(PresetControls, QMainWindow):
             QCheckBox::indicator:unchecked {
                 background: #ffffff; border: 1px solid #94a3b8; border-radius: 3px;
             }
-            QLabel#title { font-size: 30px; font-weight: 700; }
+            QLabel#title { font-size: 27px; font-weight: 700; }
             QLabel#mode { color: #087e8b; font-weight: 600; }
-            QLabel#section { font-weight: 600; padding-top: 4px; }
-            QLabel#step { font-size: 17px; font-weight: 600; padding-top: 6px; }
+            QLabel#section { font-weight: 600; font-size: 14px; }
+            QLabel#step { font-size: 16px; font-weight: 600; }
             QLabel#hint { color: #64748b; font-size: 12px; }
             QLabel#error { color: #b42318; }
             QFrame#exportNotice {
                 background: #e9f8ef; border: 1px solid #9fd7b5; border-radius: 6px;
             }
             QFrame#exportNotice QLabel { background: transparent; color: #14532d; }
-            QPushButton, QToolButton, QComboBox, QLineEdit {
+            QFrame#sectionCard, QFrame#resultsPanel {
+                background: #ffffff; border: 1px solid #dce3ed; border-radius: 10px;
+            }
+            QFrame#sectionCard QLabel, QFrame#resultsPanel QLabel {
+                background: transparent; border: 0;
+            }
+            QFrame#executionCard {
+                background: #edf7f5; border: 1px solid #c9e5df; border-radius: 10px;
+            }
+            QFrame#executionCard QLabel { background: transparent; }
+            QGraphicsView { border: 1px solid #dce3ed; border-radius: 10px; }
+            QSplitter::handle:horizontal { background: #e2e8f0; width: 6px; margin: 6px 2px; }
+            QSplitter::handle:vertical { background: #e2e8f0; height: 6px; margin: 2px 6px; }
+            QPushButton, QToolButton, QComboBox, QLineEdit, QSpinBox {
                 background: #ffffff; border: 1px solid #cbd5e1;
-                border-radius: 6px; padding: 8px 9px;
+                border-radius: 6px; padding: 7px 9px;
             }
             QToolButton#history { font-size: 20px; padding: 2px 8px; }
             QPushButton:hover, QToolButton:hover { background: #edf3f8; border-color: #94a3b8; }
@@ -410,8 +517,11 @@ class MainWindow(PresetControls, QMainWindow):
                 background: #0f766e; color: white; border-color: #0f766e;
             }
             QPushButton#primary:hover { background: #115e59; }
-            QPushButton:disabled, QPushButton#primary:disabled, QToolButton:disabled,
-            QComboBox:disabled, QLineEdit:disabled {
+            QPushButton#destructive { color: #b42318; }
+            QPushButton#destructive:hover { background: #fff1f2; border-color: #fda4af; }
+            QPushButton:disabled, QPushButton#primary:disabled, QPushButton#destructive:disabled,
+            QToolButton:disabled,
+            QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled {
                 background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;
             }
             QComboBox QAbstractItemView { selection-background-color: #ccfbf1; }
@@ -422,6 +532,14 @@ class MainWindow(PresetControls, QMainWindow):
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
+            QScrollBar:horizontal { background: #eef2f7; height: 10px; margin: 0; }
+            QScrollBar::handle:horizontal {
+                background: #b6c3d3; min-width: 28px; border-radius: 4px;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
                 background: transparent;
             }
             QFrame#controlCard {
@@ -796,15 +914,37 @@ class MainWindow(PresetControls, QMainWindow):
         self.tabs.setTabEnabled(1, False)
         self.editor.setEnabled(False)
         self.mode_label.setText("MODO ALGORITMO")
+        self.execution_card.show()
+        algorithm = self.algorithm_combo.currentText()
+        self.results_title.setText(
+            "Matrices · Floyd-Warshall"
+            if algorithm == "Floyd-Warshall"
+            else "Tablas · Bellman-Ford"
+        )
+        self.results_panel.setVisible(algorithm != "Dijkstra")
         self.view_hint.setText(
             "Arrastra el fondo para mover la vista · Usa la rueda para acercar o alejar"
         )
         for action in self.export_actions:
             action.setEnabled(True)
+            action.setToolTip("Exportar PNG de " + algorithm)
         self._sync_history()
         self.show_state(0)
-        self.visual_splitter.setSizes([300, 380, 380])
         self.centralWidget().layout().activate()
+        if algorithm != "Dijkstra":
+            tables = (
+                self.matrix_panel.tables
+                if algorithm == "Floyd-Warshall"
+                else [self.state_panel.table, self.state_panel.arcs]
+            )
+            preferred_width = max(
+                table.horizontalHeader().length() + table.verticalHeader().sizeHint().width() + 64
+                for table in tables
+            )
+            results_width = max(280, min(preferred_width, int(self.visual_splitter.width() * 0.45)))
+            self.visual_splitter.setSizes(
+                [self.visual_splitter.width() - results_width, results_width]
+            )
         self.graph_view.fit_graph()
 
     def change_graph_type(self, directed):
@@ -866,6 +1006,21 @@ class MainWindow(PresetControls, QMainWindow):
         self.run_button.setText("Iniciar " + self.algorithm_combo.currentText())
         algorithm = self.algorithm_combo.currentText()
         self.detail_checkbox.setText("Por comparación")
+        self.algorithm_hint.setText(
+            {
+                "Dijkstra": "Ruta mínima entre el origen y el destino.",
+                "Bellman-Ford": "Desde el origen a todos los nodos. Admite pesos negativos.",
+                "Floyd-Warshall": "Todos los pares. Origen y destino solo consultan una ruta.",
+            }[algorithm]
+        )
+        self.start_label.setText("Consultar desde" if algorithm == "Floyd-Warshall" else "Origen")
+        self.target_label.setText("Consultar hasta" if algorithm != "Dijkstra" else "Destino")
+        self.export_detail.setEnabled(algorithm != "Bellman-Ford")
+        self.export_detail.setToolTip(
+            "Bellman-Ford exporta un paso por arco."
+            if algorithm == "Bellman-Ford"
+            else "Elige el detalle de las imágenes sin cambiar el paso visible."
+        )
         self.detail_checkbox.setToolTip(
             "Desmarcado: una iteración completa de k"
             if algorithm == "Floyd-Warshall"
@@ -908,14 +1063,13 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
-        self.step_label.setText(f"Paso {index} / {len(self.states) - 1}")
         from graph_visualizer.core.dijkstra import route_description
 
         self.detail_label.setText(
             state.explanation + "\n" + route_description(state, self.start, self.target)
         )
         self.step_label.setText(
-            f"{state.algorithm} · {state.phase}\n"
+            f"{state.algorithm} · {state.phase} · "
             f"Iteración {state.iteration} · Paso {index} / {len(self.states) - 1}"
         )
 
@@ -926,6 +1080,8 @@ class MainWindow(PresetControls, QMainWindow):
         self.states = []
         self.state_panel.hide()
         self.matrix_panel.hide()
+        self.results_panel.hide()
+        self.execution_card.hide()
         self.state_index = 0
         self.refresh_navigation()
         self.graph_view.set_editable(True)
@@ -943,7 +1099,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.step_label.setText("Todo listo para empezar")
         self.detail_label.setText(
             "Acomoda los nodos, elige el inicio y el destino e inicia el recorrido.\n"
-            "En Editar grafo puedes cambiar nodos, conexiones y pesos."
+            "En Editar puedes cambiar nodos, conexiones y pesos."
         )
         self.view_hint.setText(
             "Doble clic en el fondo: agregar nodo · Arrastra el centro: mover nodo"
@@ -977,6 +1133,7 @@ class MainWindow(PresetControls, QMainWindow):
             kind,
             self.output_dir,
             show_state_labels=self.graph_view.show_state_labels,
+            show_edge_ids=self.graph_view.show_edge_ids,
             simple=self.export_style.currentIndex() == 1,
         )
         self.busy = True

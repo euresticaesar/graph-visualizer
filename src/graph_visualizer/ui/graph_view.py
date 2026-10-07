@@ -26,6 +26,7 @@ class GraphView(QGraphicsView):
         self.graph = graph
         self.editable = True
         self.show_state_labels = True
+        self.show_edge_ids = False
         self.connection_source = None
         self.connection_preview = None
         self.pressed_edge = None
@@ -77,6 +78,7 @@ class GraphView(QGraphicsView):
                         key,
                         offset,
                         graph.is_directed(),
+                        show_id=self.show_edge_ids,
                     )
                     self.scene().addItem(edge)
                     self.edges[edge_id(source, target, key, graph.is_directed())] = edge
@@ -112,6 +114,12 @@ class GraphView(QGraphicsView):
         self.show_state_labels = visible
         for item in self.nodes.values():
             item.set_state_labels_visible(visible)
+        self._update_scene_rect()
+
+    def set_edge_ids_visible(self, visible: bool) -> None:
+        self.show_edge_ids = visible
+        for item in self.edges.values():
+            item.set_id_visible(visible)
         self._update_scene_rect()
 
     def apply_state(

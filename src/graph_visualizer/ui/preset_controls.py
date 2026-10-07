@@ -5,14 +5,15 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QGridLayout,
     QInputDialog,
-    QLabel,
     QMessageBox,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
 from graph_visualizer.core.graph import graphs_equal
 from graph_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
+from graph_visualizer.ui.section_card import SectionCard
 
 
 class PresetControls:
@@ -21,25 +22,63 @@ class PresetControls:
         self.preset_baseline = None
         self.personal_presets = self.data_dir / "presets"
         page = QWidget()
-        layout = QGridLayout(page)
-        layout.addWidget(QLabel("Presets locales · el trabajo se guarda aparte"), 0, 0, 1, 2)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(12)
+        library = SectionCard("Biblioteca", "Carga un ejemplo o un preset personal.")
         self.preset_combo = QComboBox()
-        layout.addWidget(self.preset_combo, 1, 0, 1, 2)
-        for i, (text, callback) in enumerate(
-            [
-                ("Cargar", self.load_selected_preset),
-                ("Guardar como nuevo", self.save_new_preset),
-                ("Actualizar preset", self.update_preset),
-                ("Renombrar", self.rename_preset),
-                ("Duplicar", self.duplicate_preset),
-                ("Eliminar", self.delete_preset),
-                ("Importar JSON", self.import_preset),
-                ("Exportar JSON", self.export_preset),
-            ]
-        ):
-            button = QPushButton(text)
-            button.clicked.connect(lambda checked=False, cb=callback: self.preset_action(cb))
-            layout.addWidget(button, 2 + i // 2, i % 2)
+        self.preset_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.preset_combo.setMinimumContentsLength(12)
+        self.preset_combo.currentTextChanged.connect(self.preset_combo.setToolTip)
+        library.content.addWidget(self.preset_combo)
+        load = QPushButton("Cargar preset")
+        load.setObjectName("primary")
+        load.clicked.connect(lambda: self.preset_action(self.load_selected_preset))
+        library.content.addWidget(load)
+        layout.addWidget(library)
+        for title, description, actions in [
+            (
+                "Guardar trabajo",
+                "El autoguardado del grafo es independiente del preset.",
+                [
+                    ("Guardar como nuevo", self.save_new_preset),
+                    ("Actualizar preset", self.update_preset),
+                ],
+            ),
+            (
+                "Organizar biblioteca",
+                "Duplica los ejemplos incluidos para personalizarlos.",
+                [
+                    ("Renombrar", self.rename_preset),
+                    ("Duplicar", self.duplicate_preset),
+                    ("Eliminar", self.delete_preset),
+                ],
+            ),
+            (
+                "Compartir JSON",
+                "Importa un preset o exporta el trabajo actual.",
+                [
+                    ("Importar JSON", self.import_preset),
+                    ("Exportar JSON", self.export_preset),
+                ],
+            ),
+        ]:
+            card = SectionCard(title, description)
+            buttons = QGridLayout()
+            for index, (text, callback) in enumerate(actions):
+                button = QPushButton(text)
+                if text == "Eliminar":
+                    button.setObjectName("destructive")
+                button.clicked.connect(lambda checked=False, cb=callback: self.preset_action(cb))
+                if title == "Guardar trabajo":
+                    buttons.addWidget(button, index, 0)
+                else:
+                    buttons.addWidget(button, index // 2, index % 2)
+            card.content.addLayout(buttons)
+            layout.addWidget(card)
+        layout.addStretch()
         self.refresh_presets()
         return page
 

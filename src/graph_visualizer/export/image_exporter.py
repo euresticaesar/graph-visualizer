@@ -143,11 +143,22 @@ def legend(state, graph):
 
 
 def render_state(
-    graph, positions, state, start, target, index, count, *, simple=False, show_state_labels=True
+    graph,
+    positions,
+    state,
+    start,
+    target,
+    index,
+    count,
+    *,
+    simple=False,
+    show_state_labels=True,
+    show_edge_ids=False,
 ):
     view = GraphView(graph, positions)
     view.set_editable(False)
     view.set_state_labels_visible(show_state_labels)
+    view.set_edge_ids_visible(show_edge_ids)
     try:
         view.apply_state(state, start, target, state.phase == "Resultado")
         if simple:
@@ -253,6 +264,7 @@ def export_job(
     output_dir,
     *,
     show_state_labels=True,
+    show_edge_ids=False,
     simple=False,
 ):
     """Cooperative job: one render per yield; callers may use a Qt timer between frames."""
@@ -297,6 +309,7 @@ def export_job(
                 len(states),
                 simple=simple,
                 show_state_labels=show_state_labels,
+                show_edge_ids=show_edge_ids,
             )
             if kind == "combined":
                 # A page is a vertical sequence, with no reduction of individual frames.

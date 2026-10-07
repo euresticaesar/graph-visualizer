@@ -131,3 +131,28 @@ def test_failed_layout_save_restores_positions_and_history(window, monkeypatch):
     assert window.history_index == history_index
     assert (window.data_dir / "layout.json").read_bytes() == layout
     assert window.close()
+
+
+def test_algorithm_results_share_the_canvas_and_release_it_on_reset(window, qapp):
+    editing_width = window.graph_view.width()
+    assert not window.results_panel.isVisible()
+    assert not window.execution_card.isVisible()
+    for algorithm in ("Bellman-Ford", "Floyd-Warshall", "Dijkstra"):
+        window.algorithm_combo.setCurrentText(algorithm)
+        window.initialize()
+        qapp.processEvents()
+        assert window.execution_card.isVisible()
+        if algorithm == "Dijkstra":
+            assert not window.results_panel.isVisible()
+            assert window.graph_view.width() == editing_width
+        else:
+            assert window.results_panel.isVisible()
+            assert window.graph_view.width() < editing_width
+            assert window.results_panel.geometry().left() > window.graph_view.geometry().right()
+            assert window.state_panel.isVisible() == (algorithm == "Bellman-Ford")
+            assert window.matrix_panel.isVisible() == (algorithm == "Floyd-Warshall")
+        window.reset()
+        qapp.processEvents()
+        assert not window.results_panel.isVisible()
+        assert not window.execution_card.isVisible()
+        assert window.graph_view.width() == editing_width

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from graph_visualizer.ui.node_combo_box import NodeComboBox
+from graph_visualizer.ui.section_card import SectionCard
 
 
 class GraphEditor(QWidget):
@@ -28,48 +29,55 @@ class GraphEditor(QWidget):
         super().__init__(parent)
         self.graph = graph
         column = QVBoxLayout(self)
-        column.setContentsMargins(0, 12, 0, 0)
-        column.setSpacing(10)
+        column.setContentsMargins(0, 4, 0, 4)
+        column.setSpacing(12)
+        graph_card = SectionCard("Tipo de grafo")
         self.graph_type = QComboBox()
         self.graph_type.addItems(["No dirigido", "Dirigido"])
-        column.addWidget(self.graph_type)
-        hint = QLabel(
-            "No dirigido → dirigido: dos arcos por conexión. "
-            "Dirigido → no dirigido: conserva todos los arcos como conexiones "
-            "paralelas y reasigna claves en conflicto. Rechaza pesos negativos."
+        self.graph_type.setToolTip(
+            "No dirigido → dirigido: dos arcos por conexión.\n"
+            "Dirigido → no dirigido: conserva todos los arcos como conexiones paralelas "
+            "y reasigna claves en conflicto. Rechaza pesos negativos."
         )
-        hint.setWordWrap(True)
-        column.addWidget(hint)
+        graph_card.content.addWidget(self.graph_type)
+        self.graph_type_hint = QLabel()
+        self.graph_type_hint.setObjectName("hint")
+        self.graph_type_hint.setWordWrap(True)
+        graph_card.content.addWidget(self.graph_type_hint)
+        column.addWidget(graph_card)
         self.graph_type.currentIndexChanged.connect(
             lambda index: self.graph_type_requested.emit(index == 1)
         )
+
+        nodes = SectionCard("Nodos")
         self.node_combo = NodeComboBox()
         self.node_id = QLineEdit()
         self.node_id.setPlaceholderText("Nombre, letra o número")
         form = QFormLayout()
-        form.addRow("Nodo seleccionado", self.node_combo)
+        form.addRow("Seleccionado", self.node_combo)
         form.addRow("ID nuevo", self.node_id)
-        column.addLayout(form)
+        nodes.content.addLayout(form)
         self.add_button = QPushButton("Agregar nodo")
         self.rename_button = QPushButton("Cambiar ID")
         buttons = QHBoxLayout()
         buttons.addWidget(self.add_button)
         buttons.addWidget(self.rename_button)
-        column.addLayout(buttons)
+        nodes.content.addLayout(buttons)
         self.delete_button = QPushButton("Eliminar nodo seleccionado")
         self.delete_button.setToolTip(
             "Elimina también sus conexiones. Puedes deshacer esta acción."
         )
-        column.addWidget(self.delete_button)
+        self.delete_button.setObjectName("destructive")
+        nodes.content.addWidget(self.delete_button)
+        column.addWidget(nodes)
         self.add_button.clicked.connect(lambda: self._node_action(False))
         self.rename_button.clicked.connect(lambda: self._node_action(True))
         self.node_id.returnPressed.connect(self.rename_button.click)
         self.delete_button.clicked.connect(
             lambda: self.delete_node_requested.emit(self.node_combo.currentData())
         )
-        heading = QLabel("Conexiones y pesos")
-        heading.setObjectName("section")
-        column.addWidget(heading)
+
+        connections = SectionCard("Conexiones y pesos")
         self.source_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         self.weight_input = QLineEdit("1")
         self.weight_input.setPlaceholderText("Ej. 4.5")
@@ -79,16 +87,24 @@ class GraphEditor(QWidget):
         self.edge_combo = NodeComboBox()
         edge_form.addRow("Conexión", self.edge_combo)
         edge_form.addRow("Peso", self.weight_input)
-        column.addLayout(edge_form)
+        connections.content.addLayout(edge_form)
         self.edge_info = QLabel()
+        self.edge_info.setObjectName("hint")
         self.edge_info.setWordWrap(True)
-        column.addWidget(self.edge_info)
-        self.save_edge_button = QPushButton("Guardar conexión")
-        self.delete_edge_button = QPushButton("Eliminar conexión")
-        self.add_edge_button = QPushButton("Agregar otra conexión")
-        column.addWidget(self.add_edge_button)
-        column.addWidget(self.save_edge_button)
-        column.addWidget(self.delete_edge_button)
+        connections.content.addWidget(self.edge_info)
+        self.save_edge_button = QPushButton("Guardar peso")
+        self.save_edge_button.setObjectName("primary")
+        self.delete_edge_button = QPushButton("Eliminar")
+        self.delete_edge_button.setObjectName("destructive")
+        self.add_edge_button = QPushButton("Agregar paralela")
+        self.add_edge_button.setToolTip("Crea una conexión paralela con su propio ID y peso.")
+        save_row = QHBoxLayout()
+        self.delete_edge_button.setToolTip("Elimina la conexión seleccionada.")
+        save_row.addWidget(self.save_edge_button)
+        save_row.addWidget(self.delete_edge_button)
+        connections.content.addLayout(save_row)
+        connections.content.addWidget(self.add_edge_button)
+        column.addWidget(connections)
         self.save_edge_button.clicked.connect(lambda: self._save_edge())
         self.add_edge_button.clicked.connect(lambda: self._save_edge(new=True))
         self.edge_combo.currentIndexChanged.connect(self._weight_changed)
@@ -104,7 +120,7 @@ class GraphEditor(QWidget):
         self.error_label.setObjectName("error")
         self.error_label.setWordWrap(True)
         column.addWidget(self.error_label)
-        hint = QLabel("Los cambios se guardan automáticamente.\nUsa ↶ / ↷ para deshacer o rehacer.")
+        hint = QLabel("Autoguardado activo · Deshacer / rehacer: ↶ / ↷")
         hint.setObjectName("hint")
         hint.setWordWrap(True)
         column.addWidget(hint)
@@ -115,6 +131,11 @@ class GraphEditor(QWidget):
 
     def set_graph(self, graph: nx.Graph) -> None:
         self.graph = graph
+        self.graph_type_hint.setText(
+            "Con flechas · Admite pesos negativos"
+            if graph.is_directed()
+            else "Ambos sentidos · Pesos no negativos"
+        )
         with QSignalBlocker(self.graph_type):
             self.graph_type.setCurrentIndex(int(graph.is_directed()))
         for combo in (self.node_combo, self.source_combo, self.target_combo):
@@ -165,10 +186,14 @@ class GraphEditor(QWidget):
             index = self.edge_combo.findData(selected)
             self.edge_combo.setCurrentIndex(index if index >= 0 else 0)
         exists = self.edge_combo.count() > 0
+        self.save_edge_button.setText("Guardar peso" if exists else "Crear conexión")
+        self.add_edge_button.setVisible(exists)
         self.edge_info.setText(
-            "Elige una conexión para modificarla o agrega otra entre estos nodos."
+            "Edita la seleccionada o agrega una conexión paralela."
             if exists
-            else "Nueva conexión sin dirección."
+            else "Guarda el peso para crear una conexión dirigida."
+            if self.graph.is_directed()
+            else "Guarda el peso para conectar estos nodos."
         )
         self.save_edge_button.setEnabled(source != target)
         self.add_edge_button.setEnabled(source != target)

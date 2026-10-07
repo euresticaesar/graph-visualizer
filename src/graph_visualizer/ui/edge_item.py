@@ -20,22 +20,39 @@ class WeightLabel(QGraphicsSimpleTextItem):
 
 class EdgeItem(QGraphicsPathItem):
     def __init__(
-        self, source: NodeItem, target: NodeItem, weight: float, key=0, offset=0.0, directed=False
+        self,
+        source: NodeItem,
+        target: NodeItem,
+        weight: float,
+        key=0,
+        offset=0.0,
+        directed=False,
+        show_id=False,
     ):
         super().__init__()
         self.source, self.target = source, target
+        self.weight = weight
         self.key, self.offset = key, offset
         self.directed = directed
         self.setZValue(-1)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self.setToolTip(f"Conexión {key} · Haz clic para cambiar el peso")
-        self.label = WeightLabel(f"{format_distance(weight)} · #{key}", self)
+        self.setToolTip(
+            f"Conexión #{key} · {source.node_id} {'→' if directed else '↔'} {target.node_id}"
+            f" · Peso {format_distance(weight)}\nHaz clic para cambiar el peso"
+        )
+        self.label = WeightLabel("", self)
         self.label.setFont(QFont("Sans Serif", 11, QFont.Weight.DemiBold))
         self.label.setBrush(QColor("#475569"))
         self.label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.label.setToolTip(self.toolTip())
         self.source.position_changed.connect(self.update_position)
         self.target.position_changed.connect(self.update_position)
         self.set_highlighted(False)
+        self.set_id_visible(show_id)
+
+    def set_id_visible(self, visible: bool) -> None:
+        text = format_distance(self.weight)
+        self.label.setText(f"{text} · #{self.key}" if visible else text)
         self.update_position()
 
     def update_position(self) -> None:

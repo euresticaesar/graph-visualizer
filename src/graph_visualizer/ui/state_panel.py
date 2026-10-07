@@ -1,9 +1,9 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QHeaderView,
     QLabel,
+    QSplitter,
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
@@ -13,30 +13,41 @@ from PySide6.QtWidgets import (
 
 from graph_visualizer.core.graph import ordered_arcs
 from graph_visualizer.core.models import format_number
+from graph_visualizer.ui.section_card import SectionCard
 
 
 class StatePanel(QWidget):
     def __init__(self):
         super().__init__()
         column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
         self.hint = QLabel()
+        self.hint.setObjectName("hint")
         self.hint.setWordWrap(True)
         column.addWidget(self.hint)
-        row = QHBoxLayout()
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.splitter.setChildrenCollapsible(False)
         self.table = QTableWidget()
         self.arcs = QTableWidget()
-        for table in (self.table, self.arcs):
+        for title, table in (
+            ("Distancias · V / d / π", self.table),
+            ("Arcos ordenados", self.arcs),
+        ):
+            card = SectionCard(title)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setAlternatingRowColors(True)
-            row.addWidget(table)
-        column.addLayout(row)
+            table.verticalHeader().setDefaultSectionSize(26)
+            table.setMinimumHeight(100)
+            card.content.addWidget(table)
+            self.splitter.addWidget(card)
+        column.addWidget(self.splitter, 1)
 
     def show_state(self, graph, state):
         self.setVisible(state.algorithm == "Bellman-Ford")
         if state.algorithm != "Bellman-Ford":
             return
         self.hint.setText(
-            "Bellman-Ford · V / d / π · naranja: arco actual · amarillo: mejora. "
+            "Naranja: arco actual · Amarillo: mejora. "
             + (
                 "Cada conexión no dirigida aparece en ambos sentidos."
                 if not graph.is_directed()
@@ -102,28 +113,33 @@ class MatrixPanel(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout(self)
-        hint = QLabel(
-            "Recorridos: destino en rutas directas; k al mejorar por un intermedio; "
-            "nodo propio en diagonal; — sin recorrido. Verde: fila/columna k; "
-            "amarillo: mejoras acumuladas; violeta: comparación actual."
-        )
+        layout.setContentsMargins(0, 0, 0, 0)
+        hint = QLabel("Verde: fila / columna k · Amarillo: mejora · Violeta: comparación")
+        hint.setObjectName("hint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        row = QHBoxLayout()
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.splitter.setChildrenCollapsible(False)
         self.tables = []
         for title in ["Distancias D", "Recorridos · intermedios"]:
-            column = QVBoxLayout()
-            column.addWidget(QLabel(title))
+            card = SectionCard(title)
+            if title.startswith("Recorridos"):
+                card.setToolTip(
+                    "Destino en rutas directas; k al mejorar por un intermedio; "
+                    "nodo propio en diagonal; — sin recorrido."
+                )
             table = QTableWidget()
+            table.setMinimumHeight(100)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setItemDelegate(MatrixDelegate(table))
             table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
             table.setHorizontalHeader(MatrixHeader(Qt.Orientation.Horizontal, table))
             table.setVerticalHeader(MatrixHeader(Qt.Orientation.Vertical, table))
-            column.addWidget(table)
-            row.addLayout(column)
+            table.verticalHeader().setDefaultSectionSize(26)
+            card.content.addWidget(table)
+            self.splitter.addWidget(card)
             self.tables.append(table)
-        layout.addLayout(row)
+        layout.addWidget(self.splitter, 1)
 
     def show_state(self, state):
         self.setVisible(state.algorithm == "Floyd-Warshall")
