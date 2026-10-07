@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from dijkstra_visualizer.core.dijkstra import dijkstra_steps, reconstruct_path
+from dijkstra_visualizer.core.dijkstra import dijkstra_steps
 from dijkstra_visualizer.core.graph import validate_graph
 from dijkstra_visualizer.core.models import DijkstraState
 from dijkstra_visualizer.export.image_exporter import ExportKind, export_graph
@@ -34,7 +34,6 @@ from dijkstra_visualizer.paths import DATA_DIR, OUTPUT_DIR
 from dijkstra_visualizer.ui.graph_editor import GraphEditor
 from dijkstra_visualizer.ui.graph_view import GraphView
 from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
-from dijkstra_visualizer.ui.node_item import format_distance
 from dijkstra_visualizer.ui.preset_controls import PresetControls
 
 
@@ -280,6 +279,10 @@ class MainWindow(PresetControls, QMainWindow):
             controls.addWidget(QLabel(label))
             controls.addWidget(combo)
             combo.currentIndexChanged.connect(self._selection_changed)
+        self.detail_checkbox = QCheckBox("Por comparación")
+        self.detail_checkbox.setChecked(True)
+        self.detail_checkbox.toggled.connect(self.change_detail)
+        controls.addWidget(self.detail_checkbox)
         self.run_button = QPushButton("Iniciar Dijkstra")
         self.run_button.setObjectName("primary")
         self.run_button.clicked.connect(self.initialize)
@@ -644,7 +647,9 @@ class MainWindow(PresetControls, QMainWindow):
 
     def initialize(self) -> None:
         try:
-            self.states = dijkstra_steps(self.graph, self.start, self.target)
+            self.states = dijkstra_steps(
+                self.graph, self.start, self.target, detailed=self.detail_checkbox.isChecked()
+            )
         except ValueError as error:
             QMessageBox.warning(self, "No se pudo iniciar Dijkstra", str(error))
             return
@@ -665,6 +670,14 @@ class MainWindow(PresetControls, QMainWindow):
         self._sync_history()
         self.show_state(0)
 
+    def change_detail(self):
+        if self.states:
+            from dijkstra_visualizer.core.models import StateView
+
+            step = self.states[self.state_index].step
+            self.states = StateView(self.states.events, self.detail_checkbox.isChecked())
+            self.show_state(self.states.equivalent(step))
+
     def show_state(self, index: int) -> None:
         if not self.states or not 0 <= index < len(self.states):
             return
@@ -675,26 +688,12 @@ class MainWindow(PresetControls, QMainWindow):
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
         self.step_label.setText(f"Paso {index} / {len(self.states) - 1}")
-        if final:
-            path = reconstruct_path(state, self.start, self.target)
-            self.detail_label.setText(
-                f"Destino visitado · distancia {format_distance(state.distances[self.target])}\n"
-                + " → ".join(map(str, path))
-                if path
-                else f"No hay ruta del nodo {self.start} al nodo {self.target}.\n"
-                "Ya no quedan nodos alcanzables sin visitar."
-            )
-        elif state.current_node is None:
-            self.detail_label.setText(
-                "Nodo actual: —\nLa distancia inicial es 0; las demás son ∞.\n"
-                "Siguiente elige la menor distancia tentativa."
-            )
-        else:
-            updated = ", ".join(map(str, sorted(state.updated_nodes))) or "ninguna"
-            self.detail_label.setText(
-                f"Nodo actual: {state.current_node}\n"
-                f"Nodos visitados: {len(state.visited)}\nEtiquetas mejoradas: {updated}"
-            )
+        from dijkstra_visualizer.core.dijkstra import route_description
+
+        self.detail_label.setText(
+            state.explanation + "\n" + route_description(state, self.start, self.target)
+        )
+        self.step_label.setText(f"{state.phase} · Paso {index} / {len(self.states) - 1}")
 
     def reset(self) -> None:
         for action in self.export_actions:

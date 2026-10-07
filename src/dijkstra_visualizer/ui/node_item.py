@@ -4,20 +4,14 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsObject, QGraphicsSimpleTextItem, QStyle
 
+from dijkstra_visualizer.core.models import format_number as format_distance
+
 UNREACHED = "#e2e8f0"
 TENTATIVE = "#fef3c7"
 VISITED = "#a7e3bd"
 CURRENT = "#18794e"
 TARGET = "#dc3545"
 PATH = "#087e8b"
-
-
-def format_distance(value: float) -> str:
-    return (
-        ("−∞" if value < 0 else "∞")
-        if math.isinf(value)
-        else (f"{value:.6f}".rstrip("0").rstrip(".") or "0")
-    )
 
 
 class AnnotationLabel(QGraphicsSimpleTextItem):

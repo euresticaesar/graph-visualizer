@@ -134,6 +134,12 @@ class GraphView(QGraphicsView):
             )
         for pair, edge in self.edges.items():
             edge.set_highlighted(pair in path_edges)
+            if (
+                state
+                and state.current_edge
+                and pair == edge_id(*state.current_edge, self.graph.is_directed())
+            ):
+                edge.setPen(QPen(QColor("#e69b00"), 5))
         self._update_scene_rect()
 
     def fit_graph(self) -> None:
