@@ -1,7 +1,7 @@
 import math
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsSimpleTextItem
 
 from dijkstra_visualizer.ui.node_item import PATH, NodeItem, format_distance
@@ -19,10 +19,13 @@ class WeightLabel(QGraphicsSimpleTextItem):
 
 
 class EdgeItem(QGraphicsPathItem):
-    def __init__(self, source: NodeItem, target: NodeItem, weight: float, key=0, offset=0.0):
+    def __init__(
+        self, source: NodeItem, target: NodeItem, weight: float, key=0, offset=0.0, directed=False
+    ):
         super().__init__()
         self.source, self.target = source, target
         self.key, self.offset = key, offset
+        self.directed = directed
         self.setZValue(-1)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setToolTip(f"Conexión {key} · Haz clic para cambiar el peso")
@@ -44,6 +47,23 @@ class EdgeItem(QGraphicsPathItem):
         path.quadTo(control, end)
         self.setPath(path)
         self.label.setPos(path.pointAtPercent(0.5) - self.label.boundingRect().center())
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        if self.directed:
+            path = self.path()
+            t = 0.98
+            while t > 0.1 and (path.pointAtPercent(t) - self.target.pos()).manhattanLength() < 42:
+                t -= 0.01
+            tip = path.pointAtPercent(t)
+            delta = tip - path.pointAtPercent(max(0, t - 0.02))
+            length = math.hypot(delta.x(), delta.y()) or 1
+            unit = delta / length
+            normal = QPointF(-unit.y(), unit.x())
+            painter.setBrush(self.pen().color())
+            painter.drawPolygon(
+                QPolygonF([tip, tip - unit * 15 + normal * 7, tip - unit * 15 - normal * 7])
+            )
 
     def shape(self):
         stroker = QPainterPathStroker()

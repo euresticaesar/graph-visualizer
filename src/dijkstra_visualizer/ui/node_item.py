@@ -13,7 +13,11 @@ PATH = "#087e8b"
 
 
 def format_distance(value: float) -> str:
-    return "∞" if math.isinf(value) else f"{value:.8g}"
+    return (
+        ("−∞" if value < 0 else "∞")
+        if math.isinf(value)
+        else (f"{value:.6f}".rstrip("0").rstrip(".") or "0")
+    )
 
 
 class AnnotationLabel(QGraphicsSimpleTextItem):

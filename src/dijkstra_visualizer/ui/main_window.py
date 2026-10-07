@@ -490,8 +490,8 @@ class MainWindow(QMainWindow):
     def add_node(self, node: int, position: tuple[float, float] | None = None) -> bool:
         if self.states:
             return False
-        if type(node) is not int or node < 0 or node in self.graph:
-            self.editor.error_label.setText("Usa un ID entero desde 0 que todavía no exista.")
+        if not isinstance(node, str) or not node or node.strip() != node or node in self.graph:
+            self.editor.error_label.setText("Usa un ID texto único que todavía no exista.")
             return False
         snapshot = self._snapshot(f"Agregar nodo {node}")
         snapshot.graph.add_node(node)
@@ -511,19 +511,19 @@ class MainWindow(QMainWindow):
     def _create_node_at(self, position) -> None:
         if self.states:
             return
-        value = str(max(self.graph) + 1)
+        value = next(str(i) for i in range(len(self.graph) + 1) if str(i) not in self.graph)
         while True:
             value, accepted = QInputDialog.getText(
-                self, "Agregar nodo", "ID del nodo (entero desde 0):", text=value
+                self, "Agregar nodo", "ID del nodo (texto único):", text=value
             )
             if not accepted:
                 return
             try:
-                node = int(value)
-                if node < 0 or node in self.graph:
+                node = value.strip()
+                if not node or node in self.graph:
                     raise ValueError
             except ValueError:
-                QMessageBox.warning(self, "ID no válido", "Usa un entero desde 0 que no exista.")
+                QMessageBox.warning(self, "ID no válido", "Usa un texto único que no exista.")
                 continue
             self.add_node(node, (position.x(), position.y()))
             return
@@ -534,18 +534,22 @@ class MainWindow(QMainWindow):
             value, accepted = QInputDialog.getText(
                 self,
                 f"Conexión {source}–{target}",
-                "Peso positivo (usa punto decimal):",
+                "Peso finito (usa punto decimal):",
                 text=value,
             )
             if not accepted:
                 return None
             try:
                 weight = float(value)
-                if not math.isfinite(weight) or weight <= 0:
+                if not math.isfinite(weight) or (weight < 0 and not self.graph.is_directed()):
                     raise ValueError
                 return weight
             except ValueError:
-                QMessageBox.warning(self, "Peso no válido", "Usa un número positivo y finito.")
+                QMessageBox.warning(
+                    self,
+                    "Peso no válido",
+                    "Usa un número finito; negativo solo en grafos dirigidos.",
+                )
 
     def _edit_edge_at(self, source: int, target: int, key: int) -> None:
         if self.states or not self.graph.has_edge(source, target, key):
@@ -565,9 +569,15 @@ class MainWindow(QMainWindow):
     def rename_node(self, node: int, new_id: int) -> bool:
         if self.states:
             return False
-        if node not in self.graph or type(new_id) is not int or new_id < 0 or new_id in self.graph:
+        if (
+            node not in self.graph
+            or not isinstance(new_id, str)
+            or not new_id
+            or new_id.strip() != new_id
+            or new_id in self.graph
+        ):
             self.editor.error_label.setText(
-                "Elige un nodo existente y un ID entero desde 0 disponible."
+                "Elige un nodo existente y un ID texto único disponible."
             )
             return False
         snapshot = self._snapshot(f"Cambiar ID de {node} a {new_id}")
@@ -607,10 +617,10 @@ class MainWindow(QMainWindow):
             or isinstance(weight, bool)
             or not isinstance(weight, (int, float))
             or not math.isfinite(weight)
-            or weight <= 0
+            or (weight < 0 and not self.graph.is_directed())
         ):
             self.editor.error_label.setText(
-                "Conecta dos nodos distintos con un peso positivo y finito."
+                "Conecta dos nodos distintos con un peso finito; negativo solo en grafos dirigidos."
             )
             return False
         snapshot = self._snapshot(f"Guardar conexión {source}–{target}")

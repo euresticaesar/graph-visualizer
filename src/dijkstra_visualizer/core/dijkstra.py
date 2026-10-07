@@ -9,11 +9,13 @@ from dijkstra_visualizer.core.models import DijkstraState
 
 def dijkstra_steps(graph: nx.Graph, start: int, target: int) -> list[DijkstraState]:
     validate_graph(graph)
-    if type(start) is not int or start not in graph:
+    if not isinstance(start, str) or start not in graph:
         raise ValueError("Selecciona un nodo de inicio que exista en el grafo.")
-    if type(target) is not int or target not in graph:
+    if not isinstance(target, str) or target not in graph:
         raise ValueError("Selecciona un nodo de destino que exista en el grafo.")
 
+    if any(data["weight"] < 0 for _, _, data in graph.edges(data=True)):
+        raise ValueError("Dijkstra no admite pesos negativos; usa Bellman-Ford o Floyd-Warshall.")
     distances = dict.fromkeys(graph, math.inf)
     predecessors: dict[int, int | None] = dict.fromkeys(graph)
     predecessor_edges: dict[int, int | None] = dict.fromkeys(graph)

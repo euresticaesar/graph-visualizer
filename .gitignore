@@ -20,3 +20,6 @@ output/
 /data/nodes.csv
 /data/edges.csv
 /data/layout.json
+
+/data/graph.json
+/data/presets/

@@ -30,7 +30,7 @@ class GraphEditor(QWidget):
         column.setSpacing(10)
         self.node_combo = NodeComboBox()
         self.node_id = QLineEdit()
-        self.node_id.setPlaceholderText("Número entero desde 0")
+        self.node_id.setPlaceholderText("Nombre, letra o número")
         form = QFormLayout()
         form.addRow("Nodo seleccionado", self.node_combo)
         form.addRow("ID nuevo", self.node_id)
@@ -110,7 +110,7 @@ class GraphEditor(QWidget):
                 combo.setCurrentIndex(index if index >= 0 else 0)
         if self.source_combo.currentData() == self.target_combo.currentData() and len(graph) > 1:
             self.target_combo.setCurrentIndex(1 if self.source_combo.currentIndex() == 0 else 0)
-        self.node_id.setText(str(max(graph) + 1))
+        self.node_id.setText(next(str(i) for i in range(len(graph) + 1) if str(i) not in graph))
         self.delete_button.setEnabled(len(graph) > 1)
         self.error_label.clear()
         self._edge_selection_changed()
@@ -121,11 +121,11 @@ class GraphEditor(QWidget):
 
     def _node_action(self, rename: bool) -> None:
         try:
-            node = int(self.node_id.text())
-            if node < 0:
+            node = self.node_id.text().strip()
+            if not node:
                 raise ValueError
         except ValueError:
-            self.error_label.setText("El ID debe ser un número entero mayor o igual a cero.")
+            self.error_label.setText("El ID debe ser un texto no vacío.")
             return
         self.error_label.clear()
         if rename:
@@ -171,11 +171,11 @@ class GraphEditor(QWidget):
     def _save_edge(self, new: bool = False) -> None:
         try:
             weight = float(self.weight_input.text())
-            if not math.isfinite(weight) or weight <= 0:
+            if not math.isfinite(weight) or (weight < 0 and not self.graph.is_directed()):
                 raise ValueError
         except ValueError:
             self.error_label.setText(
-                "El peso debe ser un número positivo y finito. Usa punto decimal."
+                "El peso debe ser finito; negativo solo en grafos dirigidos. Usa punto decimal."
             )
             return
         self.error_label.clear()

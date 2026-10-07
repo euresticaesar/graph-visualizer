@@ -62,13 +62,24 @@ class GraphView(QGraphicsView):
                 self.nodes[node] = item
             groups = defaultdict(list)
             for source, target, key, data in edges_with_keys(graph):
-                groups[min(source, target), max(source, target)].append((key, data["weight"]))
-            for (source, target), connections in groups.items():
-                for index, (key, weight) in enumerate(sorted(connections)):
-                    offset = (index - (len(connections) - 1) / 2) * 40
-                    edge = EdgeItem(self.nodes[source], self.nodes[target], weight, key, offset)
+                groups[min(source, target), max(source, target)].append(
+                    (source, target, key, data["weight"])
+                )
+            for connections in groups.values():
+                for index, (source, target, key, weight) in enumerate(sorted(connections)):
+                    offset = (index - (len(connections) - 1) / 2) * 48
+                    if source > target:
+                        offset = -offset
+                    edge = EdgeItem(
+                        self.nodes[source],
+                        self.nodes[target],
+                        weight,
+                        key,
+                        offset,
+                        graph.is_directed(),
+                    )
                     self.scene().addItem(edge)
-                    self.edges[edge_id(source, target, key)] = edge
+                    self.edges[edge_id(source, target, key, graph.is_directed())] = edge
         self._update_scene_rect()
 
     def _selection_changed(self) -> None:
@@ -182,7 +193,9 @@ class GraphView(QGraphicsView):
                     event.accept()
                     return
             elif isinstance(item, EdgeItem):
-                self.pressed_edge = edge_id(item.source.node_id, item.target.node_id, item.key)
+                self.pressed_edge = edge_id(
+                    item.source.node_id, item.target.node_id, item.key, self.graph.is_directed()
+                )
                 event.accept()
                 return
         super().mousePressEvent(event)
@@ -218,7 +231,10 @@ class GraphView(QGraphicsView):
             event.accept()
             if (
                 isinstance(item, EdgeItem)
-                and edge_id(item.source.node_id, item.target.node_id, item.key) == selected
+                and edge_id(
+                    item.source.node_id, item.target.node_id, item.key, self.graph.is_directed()
+                )
+                == selected
                 and (point - self.press_position).manhattanLength()
                 < QApplication.startDragDistance()
             ):
