@@ -35,6 +35,7 @@ from dijkstra_visualizer.ui.graph_editor import GraphEditor
 from dijkstra_visualizer.ui.graph_view import GraphView
 from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
 from dijkstra_visualizer.ui.node_item import format_distance
+from dijkstra_visualizer.ui.preset_controls import PresetControls
 
 
 class ControlTabs(QTabWidget):
@@ -52,7 +53,7 @@ class EditSnapshot:
     description: str
 
 
-class MainWindow(QMainWindow):
+class MainWindow(PresetControls, QMainWindow):
     def __init__(self, data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR):
         super().__init__()
         self.data_dir, self.output_dir = data_dir, output_dir
@@ -72,6 +73,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self.history.append(self._snapshot("Estado inicial"))
         self.reset()
+        self.preset_baseline = self.preset_fingerprint()
         QTimer.singleShot(0, self.graph_view.fit_graph)
 
     @property
@@ -144,6 +146,7 @@ class MainWindow(QMainWindow):
         self.graph_view.node_creation_requested.connect(self._create_node_at)
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
         self.graph_view.connection_requested.connect(self._connect_nodes)
+        self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
         controls.addWidget(self.tabs, 1)
 
         self.state_labels_checkbox = QCheckBox("Mostrar etiquetas de estado")

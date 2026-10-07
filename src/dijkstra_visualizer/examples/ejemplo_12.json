@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "name": "Ejemplo · 12 nodos",
+  "directed": false,
+  "nodes": [
+    "1",
+    "10",
+    "11",
+    "12",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9"
+  ],
+  "edges": [
+    {
+      "source": "1",
+      "target": "2",
+      "id": 0,
+      "weight": 4.0
+    },
+    {
+      "source": "1",
+      "target": "5",
+      "id": 0,
+      "weight": 2.0
+    },
+    {
+      "source": "10",
+      "target": "6",
+      "id": 0,
+      "weight": 6.0
+    },
+    {
+      "source": "10",
+      "target": "7",
+      "id": 0,
+      "weight": 2.0
+    },
+    {
+      "source": "10",
+      "target": "9",
+      "id": 0,
+      "weight": 2.0
+    },
+    {
+      "source": "10",
+      "target": "11",
+      "id": 0,
+      "weight": 3.0
+    },
+    {
+      "source": "11",
+      "target": "7",
+      "id": 0,
+      "weight": 5.0
+    },
+    {
+      "source": "11",
+      "target": "12",
+      "id": 0,
+      "weight": 2.0
+    },
+    {
+      "source": "12",
+      "target": "8",
+      "id": 0,
+      "weight": 7.0
+    },
+    {
+      "source": "2",
+      "target": "3",
+      "id": 0,
+      "weight": 5.0
+    },
+    {
+      "source": "2",
+      "target": "5",
+      "id": 0,
+      "weight": 1.0
+    },
+    {
+      "source": "2",
+      "target": "6",
+      "id": 0,
+      "weight": 7.0
+    },
+    {
+      "source": "3",
+      "target": "4",
+      "id": 0,
+      "weight": 3.0
+    },
+    {
+      "source": "3",
+      "target": "6",
+      "id": 0,
+      "weight": 2.0
+    },
+    {
+      "source": "3",
+      "target": "7",
+      "id": 0,
+      "weight": 6.0
+    },
+    {
+      "source": "4",
+      "target": "8",
+      "id": 0,
+      "weight": 4.0
+    },
+    {
+      "source": "5",
+      "target": "6",
+      "id": 0,
+      "weight": 3.0
+    },
+    {
+      "source": "5",
+      "target": "9",
+      "id": 0,
+      "weight": 8.0
+    },
+    {
+      "source": "6",
+      "target": "7",
+      "id": 0,
+      "weight": 4.0
+    },
+    {
+      "source": "6",
+      "target": "9",
+      "id": 0,
+      "weight": 5.0
+    },
+    {
+      "source": "7",
+      "target": "8",
+      "id": 0,
+      "weight": 1.0
+    }
+  ],
+  "positions": {
+    "1": [
+      100.0,
+      100.0
+    ],
+    "2": [
+      330.0,
+      100.0
+    ],
+    "3": [
+      560.0,
+      100.0
+    ],
+    "4": [
+      790.0,
+      100.0
+    ],
+    "5": [
+      100.0,
+      300.0
+    ],
+    "6": [
+      330.0,
+      300.0
+    ],
+    "7": [
+      560.0,
+      300.0
+    ],
+    "8": [
+      790.0,
+      300.0
+    ],
+    "9": [
+      100.0,
+      500.0
+    ],
+    "10": [
+      330.0,
+      500.0
+    ],
+    "11": [
+      560.0,
+      500.0
+    ],
+    "12": [
+      790.0,
+      500.0
+    ]
+  },
+  "settings": {}
+}
