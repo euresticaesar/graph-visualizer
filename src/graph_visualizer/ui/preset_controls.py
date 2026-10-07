@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from graph_visualizer.core.graph import graphs_equal
 from graph_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
+from graph_visualizer.ui.node_combo_box import sorted_node_ids
 from graph_visualizer.ui.section_card import SectionCard
 
 
@@ -170,12 +171,13 @@ class PresetControls:
         self.reset()
         snapshot = self._snapshot(f"Cargar preset {preset.name}")
         snapshot.graph, snapshot.positions = preset.graph.copy(), dict(preset.positions)
-        snapshot.start = preset.settings.get("start", min(preset.graph))
-        snapshot.target = preset.settings.get("target", max(preset.graph))
+        ordered = sorted_node_ids(preset.graph)
+        snapshot.start = preset.settings.get("start", ordered[0])
+        snapshot.target = preset.settings.get("target", ordered[-1])
         if snapshot.start not in preset.graph:
-            snapshot.start = min(preset.graph)
+            snapshot.start = ordered[0]
         if snapshot.target not in preset.graph:
-            snapshot.target = max(preset.graph)
+            snapshot.target = ordered[-1]
         if not self._commit_edit(snapshot):
             # Identical graph is a successful load; a failed write is not.
             if (

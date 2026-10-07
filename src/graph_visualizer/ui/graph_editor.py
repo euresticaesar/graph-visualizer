@@ -139,13 +139,7 @@ class GraphEditor(QWidget):
         with QSignalBlocker(self.graph_type):
             self.graph_type.setCurrentIndex(int(graph.is_directed()))
         for combo in (self.node_combo, self.source_combo, self.target_combo):
-            selected = combo.currentData()
-            with QSignalBlocker(combo):
-                combo.clear()
-                for node in sorted(graph):
-                    combo.addItem(f"Nodo {node}", node)
-                index = combo.findData(selected)
-                combo.setCurrentIndex(index if index >= 0 else 0)
+            combo.set_nodes(graph)
         if self.source_combo.currentData() == self.target_combo.currentData() and len(graph) > 1:
             self.target_combo.setCurrentIndex(1 if self.source_combo.currentIndex() == 0 else 0)
         self.node_id.setText(next(str(i) for i in range(len(graph) + 1) if str(i) not in graph))

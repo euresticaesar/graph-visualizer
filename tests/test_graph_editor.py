@@ -60,7 +60,7 @@ def test_history_restores_topology_positions_and_endpoints(window):
         assert_saved(window)
     assert nx.utils.graphs_equal(window.graph, original_graph)
     assert window.graph_view.positions() == original_positions
-    assert (window.start, window.target) == ("1", "9")
+    assert (window.start, window.target) == ("1", "12")
     assert not window.undo_button.isEnabled()
     for _ in range(4):
         window.redo()

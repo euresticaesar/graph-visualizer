@@ -34,9 +34,10 @@ from graph_visualizer.export.image_exporter import ExportKind, export_job
 from graph_visualizer.io.graph_io import load_graph, save_graph_data
 from graph_visualizer.io.layout_io import PositionMap, load_layout, save_layout
 from graph_visualizer.paths import DATA_DIR, OUTPUT_DIR
+from graph_visualizer.ui.export_controls import ExportControls
 from graph_visualizer.ui.graph_editor import GraphEditor
 from graph_visualizer.ui.graph_view import GraphView
-from graph_visualizer.ui.node_combo_box import NodeComboBox
+from graph_visualizer.ui.node_combo_box import NodeComboBox, sorted_node_ids
 from graph_visualizer.ui.preset_controls import PresetControls
 from graph_visualizer.ui.section_card import SectionCard
 from graph_visualizer.ui.state_panel import MatrixPanel, StatePanel
@@ -59,7 +60,7 @@ class EditSnapshot:
     preset_baseline: dict | None = None
 
 
-class MainWindow(PresetControls, QMainWindow):
+class MainWindow(PresetControls, ExportControls, QMainWindow):
     def __init__(self, data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR):
         super().__init__()
         self.data_dir, self.output_dir = data_dir, output_dir
@@ -72,6 +73,10 @@ class MainWindow(PresetControls, QMainWindow):
         self.last_export_path: Path | None = None
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(lambda: self.show_state(self.state_index + 1))
+        self.export_preview_timer = QTimer(self)
+        self.export_preview_timer.timeout.connect(self.advance_export_preview)
+        self.export_preview_job = None
+        self.export_preview_cache = {}
         self.busy = False
         self.worker = None
         self.setWindowTitle("Visualizador de grafos · Caminos mínimos")
@@ -88,11 +93,11 @@ class MainWindow(PresetControls, QMainWindow):
         QTimer.singleShot(0, self.graph_view.fit_graph)
 
     @property
-    def start(self) -> int:
+    def start(self) -> str:
         return self.start_combo.currentData()
 
     @property
-    def target(self) -> int:
+    def target(self) -> str:
         return self.target_combo.currentData()
 
     def _action(self, text: str, callback, shortcuts=()) -> QAction:
@@ -160,7 +165,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.connection_requested.connect(self._connect_nodes)
         self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
         self.tabs.addTab(self._scroll_page(self._export_controls()), "Exportar")
-        self.tabs.currentChanged.connect(lambda index: self.stop_playback() if index else None)
+        self.tabs.currentChanged.connect(self._tab_changed)
         controls.addWidget(self.tabs, 1)
         self._build_legend(controls)
         self.exit_button = QPushButton("Salir")
@@ -197,6 +202,7 @@ class MainWindow(PresetControls, QMainWindow):
             "Muestra los estados de los nodos; INICIO, DESTINO y distancias permanecen visibles."
         )
         self.state_labels_checkbox.toggled.connect(self.graph_view.set_state_labels_visible)
+        self.state_labels_checkbox.toggled.connect(self.refresh_export_preview)
         display_row.addWidget(self.state_labels_checkbox)
         self.edge_ids_checkbox = QCheckBox("IDs de conexiones")
         self.edge_ids_checkbox.setToolTip(
@@ -204,6 +210,7 @@ class MainWindow(PresetControls, QMainWindow):
             "También se aplica a las exportaciones PNG."
         )
         self.edge_ids_checkbox.toggled.connect(self.graph_view.set_edge_ids_visible)
+        self.edge_ids_checkbox.toggled.connect(self.refresh_export_preview)
         display_row.addWidget(self.edge_ids_checkbox)
         display_row.addStretch()
         self.help_button = QToolButton()
@@ -335,18 +342,25 @@ class MainWindow(PresetControls, QMainWindow):
         self.algorithm_hint.setWordWrap(True)
         setup.content.addWidget(self.algorithm_hint)
         self.start_combo, self.target_combo = NodeComboBox(), NodeComboBox()
-        for node in sorted(self.graph):
-            self.start_combo.addItem(f"Nodo {node}", node)
-            self.target_combo.addItem(f"Nodo {node}", node)
+        self.start_combo.set_nodes(self.graph)
+        self.target_combo.set_nodes(self.graph)
         self.target_combo.setCurrentIndex(self.target_combo.count() - 1)
-        selection = QFormLayout()
+        selection = QGridLayout()
         self.start_label, self.target_label = QLabel("Origen"), QLabel("Destino")
-        for label, combo in (
-            (self.start_label, self.start_combo),
-            (self.target_label, self.target_combo),
+        for index, (label, combo) in enumerate(
+            [(self.start_label, self.start_combo), (self.target_label, self.target_combo)]
         ):
-            selection.addRow(label, combo)
+            selection.addWidget(label, index, 0)
+            selection.addWidget(combo, index, 1)
             combo.currentIndexChanged.connect(self._selection_changed)
+        self.swap_button = QToolButton()
+        self.swap_button.setText("⇄")
+        self.swap_button.setFixedWidth(34)
+        self.swap_button.setAccessibleName("Intercambiar origen y destino")
+        self.swap_button.setToolTip("Intercambiar origen y destino")
+        self.swap_button.clicked.connect(self.swap_endpoints)
+        selection.addWidget(self.swap_button, 0, 2, 2, 1)
+        selection.setColumnStretch(1, 1)
         setup.content.addLayout(selection)
         self.early_stop = QCheckBox("Terminar si una pasada no mejora")
         self.early_stop.setToolTip("Detiene Bellman-Ford tras una pasada completa sin cambios.")
@@ -386,6 +400,7 @@ class MainWindow(PresetControls, QMainWindow):
         navigation.content.addLayout(buttons)
         jumps = QFormLayout()
         self.jump_step = QSpinBox()
+        self.jump_step.setKeyboardTracking(False)
         self.jump_step.valueChanged.connect(self.show_state)
         jumps.addRow("Paso", self.jump_step)
         self.jump_phase = QComboBox()
@@ -421,55 +436,13 @@ class MainWindow(PresetControls, QMainWindow):
         controls.addStretch()
         return page
 
-    def _export_controls(self) -> QWidget:
-        page = QWidget()
-        controls = QVBoxLayout(page)
-        controls.setContentsMargins(0, 4, 0, 4)
-        controls.setSpacing(12)
-        options = SectionCard("Formato PNG", "Exporta los estados del algoritmo iniciado.")
-        self.export_style = QComboBox()
-        self.export_style.addItems(["Didáctico", "Simple (solo grafo)"])
-        self.export_detail = QComboBox()
-        self.export_detail.addItems(["Detalle visible", "Resumen", "Subpasos"])
-        form = QFormLayout()
-        form.addRow("Estilo", self.export_style)
-        form.addRow("Pasos", self.export_detail)
-        options.content.addLayout(form)
-        hint = QLabel(
-            "Didáctico incluye explicación, leyenda y tablas. "
-            "Simple muestra el grafo. Se respeta la visibilidad de los IDs de conexiones."
-        )
-        hint.setObjectName("hint")
-        hint.setWordWrap(True)
-        options.content.addWidget(hint)
-        controls.addWidget(options)
-        images = SectionCard("Qué exportar")
-        buttons = QGridLayout()
-        self.export_actions: list[QAction] = []
-        self.export_buttons: list[QToolButton] = []
-        for index, (label, kind) in enumerate(
-            [
-                ("Paso actual", "current"),
-                ("Pasos separados", "all"),
-                ("Imagen conjunta", "combined"),
-                ("Resultado final", "final"),
-            ]
-        ):
-            action = self._action(label, lambda checked=False, kind=kind: self.export(kind))
-            action.setToolTip("Inicia un algoritmo para exportar imágenes")
-            self.export_actions.append(action)
-            button = self._action_button(action)
-            self.export_buttons.append(button)
-            buttons.addWidget(button, index // 2, index % 2)
-        images.content.addLayout(buttons)
-        controls.addWidget(images)
-        destination = SectionCard("Archivos generados", "Cada exportación crea su propia carpeta.")
-        self.output_button = QPushButton("Abrir carpeta de exportaciones")
-        self.output_button.clicked.connect(self.open_output_folder)
-        destination.content.addWidget(self.output_button)
-        controls.addWidget(destination)
-        controls.addStretch()
-        return page
+    def _tab_changed(self, index: int) -> None:
+        if index:
+            self.stop_playback()
+        if index == 3:
+            self.refresh_export_preview()
+        else:
+            self.cancel_export_preview()
 
     def _apply_style(self) -> None:
         self.setStyleSheet("""
@@ -591,18 +564,14 @@ class MainWindow(PresetControls, QMainWindow):
             (self.start_combo, snapshot.start),
             (self.target_combo, snapshot.target),
         ):
-            with QSignalBlocker(combo):
-                if [combo.itemData(i) for i in range(combo.count())] != sorted(self.graph):
-                    combo.clear()
-                    for node in sorted(self.graph):
-                        combo.addItem(f"Nodo {node}", node)
-                combo.setCurrentIndex(combo.findData(selected))
+            combo.set_nodes(self.graph, selected)
         self.editor.set_graph(self.graph)
         self.graph_view.apply_state(None, self.start, self.target)
         self.graph_info.setText(
             f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones · "
             f"{'Dirigido' if self.graph.is_directed() else 'No dirigido'}"
         )
+        self._refresh_swap_button()
 
     def _persist_and_restore(self, snapshot: EditSnapshot) -> bool:
         current = self.history[self.history_index]
@@ -683,11 +652,31 @@ class MainWindow(PresetControls, QMainWindow):
             self.statusBar().showMessage(f"Rehecho: {snapshot.description}", 5000)
 
     def _selection_changed(self) -> None:
+        self._refresh_swap_button()
         if self.states:
             self.show_state(self.state_index)
+            self.refresh_export_preview()
             return
         if not self.states and self.history:
             self._commit_edit(self._snapshot("Cambiar inicio o destino"))
+
+    def _refresh_swap_button(self) -> None:
+        self.swap_button.setEnabled(
+            self.start_combo.isEnabled()
+            and self.target_combo.isEnabled()
+            and self.start != self.target
+        )
+
+    def swap_endpoints(self) -> None:
+        if not self.swap_button.isEnabled():
+            return
+        start, target = self.start, self.target
+        with QSignalBlocker(self.start_combo), QSignalBlocker(self.target_combo):
+            self.start_combo.setCurrentIndex(self.start_combo.findData(target))
+            self.target_combo.setCurrentIndex(self.target_combo.findData(start))
+        self.start_combo.setToolTip(self.start_combo.currentText())
+        self.target_combo.setToolTip(self.target_combo.currentText())
+        self._selection_changed()
 
     def _save_layout(self) -> None:
         self._commit_edit(self._snapshot("Mover nodos"))
@@ -806,10 +795,11 @@ class MainWindow(PresetControls, QMainWindow):
         snapshot = self._snapshot(f"Eliminar nodo {node}")
         snapshot.graph.remove_node(node)
         del snapshot.positions[node]
+        ordered = sorted_node_ids(snapshot.graph)
         if snapshot.start == node:
-            snapshot.start = min(snapshot.graph)
+            snapshot.start = ordered[0]
         if snapshot.target == node:
-            snapshot.target = max(snapshot.graph)
+            snapshot.target = ordered[-1]
         return self._commit_edit(snapshot)
 
     def set_edge(self, source: str, target: str, weight: float, key: int | None = None) -> bool:
@@ -908,6 +898,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(self.algorithm_combo.currentText() == "Floyd-Warshall")
         self.target_combo.setEnabled(self.algorithm_combo.currentText() != "Dijkstra")
+        self._refresh_swap_button()
         self.run_button.setEnabled(False)
         self.reset_button.setEnabled(True)
         self.tabs.setCurrentIndex(0)
@@ -946,6 +937,7 @@ class MainWindow(PresetControls, QMainWindow):
                 [self.visual_splitter.width() - results_width, results_width]
             )
         self.graph_view.fit_graph()
+        self.refresh_export_preview()
 
     def change_graph_type(self, directed):
         from graph_visualizer.core.graph import convert_graph
@@ -961,14 +953,25 @@ class MainWindow(PresetControls, QMainWindow):
     def stop_playback(self):
         self.play_timer.stop()
         if hasattr(self, "play_button"):
-            self.play_button.setText("▶ Reproducir")
+            self._refresh_play_button()
+
+    def _refresh_play_button(self) -> None:
+        self.play_button.setText(
+            "Ⅱ Pausar"
+            if self.play_timer.isActive()
+            else "↻ Repetir recorrido"
+            if self.states and self.state_index == len(self.states) - 1
+            else "▶ Reproducir"
+        )
 
     def toggle_playback(self):
         if self.play_timer.isActive():
             self.stop_playback()
-        elif self.states and self.state_index < len(self.states) - 1:
+        elif self.states:
+            if self.state_index == len(self.states) - 1:
+                self.show_state(0)
             self.play_timer.start(self.speed.value())
-            self.play_button.setText("Ⅱ Pausar")
+            self._refresh_play_button()
 
     def refresh_navigation(self):
         with QSignalBlocker(self.jump_step):
@@ -995,6 +998,7 @@ class MainWindow(PresetControls, QMainWindow):
             self.statusBar().showMessage("Espera a que termine la operación antes de cerrar.")
             event.ignore()
             return
+        self.cancel_export_preview()
         super().closeEvent(event)
 
     def algorithm_changed(self):
@@ -1042,6 +1046,7 @@ class MainWindow(PresetControls, QMainWindow):
             self.states = StateView(self.states.events, self.detail_checkbox.isChecked())
             self.refresh_navigation()
             self.show_state(self.states.equivalent(step))
+        self.refresh_export_preview()
 
     def show_state(self, index: int) -> None:
         if not self.states or not 0 <= index < len(self.states):
@@ -1060,6 +1065,7 @@ class MainWindow(PresetControls, QMainWindow):
         final = index == len(self.states) - 1
         if final:
             self.stop_playback()
+        self._refresh_play_button()
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
@@ -1078,6 +1084,9 @@ class MainWindow(PresetControls, QMainWindow):
         for action in self.export_actions:
             action.setEnabled(False)
         self.states = []
+        self.cancel_export_preview()
+        self.export_preview_cache.clear()
+        self._refresh_play_button()
         self.state_panel.hide()
         self.matrix_panel.hide()
         self.results_panel.hide()
@@ -1088,6 +1097,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.apply_state(None, self.start, self.target)
         self.start_combo.setEnabled(True)
         self.target_combo.setEnabled(True)
+        self._refresh_swap_button()
         self.run_button.setEnabled(True)
         self.early_stop.setEnabled(True)
         self.previous_button.setEnabled(False)
@@ -1111,17 +1121,14 @@ class MainWindow(PresetControls, QMainWindow):
             f"{'Dirigido' if self.graph.is_directed() else 'No dirigido'}"
         )
         self._sync_history()
+        self.refresh_export_preview()
 
     def export(self, kind: ExportKind) -> None:
         if not self.states or self.busy:
             return
         self.stop_playback()
-        from graph_visualizer.core.models import StateView
-
-        states = self.states
-        mode = self.export_detail.currentIndex()
-        if mode and self.algorithm_combo.currentText() != "Bellman-Ford":
-            states = StateView(self.states.events, mode == 2)
+        self.cancel_export_preview()
+        states = self._export_states()
         index = states.equivalent(self.states[self.state_index].step)
         self.export_generator = export_job(
             self.graph.copy(),
@@ -1136,6 +1143,7 @@ class MainWindow(PresetControls, QMainWindow):
             show_edge_ids=self.graph_view.show_edge_ids,
             simple=self.export_style.currentIndex() == 1,
         )
+        self.export_kind = kind
         self.busy = True
         self.centralWidget().setEnabled(False)
         self.statusBar().showMessage("Generando imágenes…")
@@ -1150,6 +1158,11 @@ class MainWindow(PresetControls, QMainWindow):
             self.busy = False
             self.centralWidget().setEnabled(True)
             self.last_export_path = result.value
+            if self.export_kind == "combined":
+                self.export_preview_cache[self._export_preview_key(self._export_states())] = sum(
+                    1 for _path in self.last_export_path.glob("*.png")
+                )
+            self.refresh_export_preview()
             self.export_notice_title.setText("✓ Exportación completada")
             self.export_notice_path.setText(str(result.value))
             self.export_notice.show()
@@ -1158,6 +1171,7 @@ class MainWindow(PresetControls, QMainWindow):
             self.busy = False
             self.centralWidget().setEnabled(True)
             self.statusBar().showMessage("No se pudo exportar")
+            self.refresh_export_preview()
             QMessageBox.warning(self, "No se pudo exportar", str(error))
 
     def _open_folder(self, folder: Path) -> None:

@@ -156,3 +156,54 @@ def test_algorithm_results_share_the_canvas_and_release_it_on_reset(window, qapp
         assert not window.results_panel.isVisible()
         assert not window.execution_card.isVisible()
         assert window.graph_view.width() == editing_width
+
+
+def test_swap_is_one_undoable_edit_and_respects_algorithm_locks(window):
+    endpoints = window.start, window.target
+    history = window.history_index
+    window.swap_button.click()
+    assert (window.start, window.target) == endpoints[::-1]
+    assert window.history_index == history + 1
+    window.undo()
+    assert (window.start, window.target) == endpoints
+    window.redo()
+    assert (window.start, window.target) == endpoints[::-1]
+    for algorithm in ("Dijkstra", "Bellman-Ford"):
+        window.algorithm_combo.setCurrentText(algorithm)
+        window.initialize()
+        assert not window.swap_button.isEnabled()
+        window.swap_endpoints()
+        assert (window.start, window.target) == endpoints[::-1]
+        window.reset()
+    window.algorithm_combo.setCurrentText("Floyd-Warshall")
+    window.initialize()
+    states, index, history = window.states, window.state_index, window.history_index
+    assert window.swap_button.isEnabled()
+    window.swap_button.click()
+    assert (window.start, window.target) == endpoints
+    assert window.states is states and window.state_index == index
+    assert window.history_index == history
+
+
+def test_playback_can_repeat_after_the_final_step(window):
+    window.initialize()
+    window.show_state(len(window.states) - 1)
+    states = window.states
+    assert "Repetir" in window.play_button.text()
+    window.play_button.click()
+    assert window.state_index == 0
+    assert window.states is states
+    assert window.play_timer.isActive()
+    window.play_button.click()
+    assert not window.play_timer.isActive()
+    assert "Reproducir" in window.play_button.text()
+
+
+def test_typing_a_step_waits_for_enter(window):
+    window.initialize()
+    index = len(window.states) - 1
+    window.jump_step.selectAll()
+    QTest.keyClicks(window.jump_step, str(index))
+    assert window.state_index == 0
+    QTest.keyClick(window.jump_step, Qt.Key.Key_Return)
+    assert window.state_index == index

@@ -28,7 +28,7 @@ PySide6 necesita un entorno gráfico. Para pruebas sin pantalla se utiliza `QT_Q
 En **Editar** puedes agregar, renombrar y eliminar nodos, cambiar pesos y crear conexiones paralelas. Los controles se agrupan en tarjetas de **Tipo de grafo**, **Nodos** y **Conexiones y pesos**. Cada grafo es dirigido o no dirigido; no se mezclan ambos tipos.
 
 - **IDs:** strings no vacíos; se eliminan espacios exteriores y se distinguen mayúsculas (`A` y `a` son nodos diferentes). Letras, nombres, comas, comillas y números escritos como texto son válidos. No existe un atributo numérico adicional de “valor”. Se rechazan duplicados después de normalizar espacios.
-- **Orden:** lexicográfico por ID; `"10"` precede a `"2"`. Se usa en selectores, matrices y desempates.
+- **Orden de selección:** los IDs numéricos se muestran de menor a mayor (`"2"` antes de `"10"`). Si hay nombres y números, primero aparecen los nombres de A a Z, sin distinguir mayúsculas para ordenar, y después los números. Admite negativos, decimales y notación científica; los IDs originales siguen siendo strings distintos, incluidos `"01"` y `"1"`. El orden interno de los algoritmos, matrices y desempates continúa siendo lexicográfico.
 - **Pesos:** números finitos, incluido cero. Los negativos solo se permiten en grafos dirigidos. Se rechazan NaN, infinitos y conexiones de un nodo consigo mismo.
 - **Identidad:** una conexión se identifica por sus extremos y su clave entera no negativa. En un grafo dirigido `(u,v,id)` es distinto de `(v,u,id)`. Las claves pueden repetirse en pares diferentes. Los dibujos muestran solo el peso inicialmente; activa **IDs de conexiones** encima del lienzo para añadir `#id`. La identidad sigue disponible en el tooltip, el editor y las tablas. Las curvas separan paralelas y sentidos opuestos.
 - **Cambio de tipo:** no dirigido → dirigido crea dos arcos por conexión con la misma clave. Dirigido → no dirigido conserva cada arco como una conexión; si las claves del par chocan, asigna la siguiente clave libre. Rechaza la conversión si hay pesos negativos. Nunca fusiona conexiones silenciosamente. Puedes deshacer la conversión.
@@ -42,6 +42,8 @@ Los cambios se guardan automáticamente. **↶ / ↷**, `Ctrl+Z` y `Ctrl+Y` cons
 ## Ejecución y navegación
 
 La pestaña **Recorrido** agrupa **Configurar recorrido**, **Explorar pasos** y **Reproducción automática**. Elige el algoritmo y sus opciones, luego **Iniciar**. Durante la ejecución, la explicación, la fase, la iteración y la posición aparecen en una tarjeta encima del grafo. Puedes avanzar, retroceder, ir al inicio/final con **⇤ / ⇥**, escribir un número de paso o saltar a una fase/iteración. **Reproducir / Pausar** utiliza un solo temporizador; el intervalo se expresa en milisegundos por paso.
+
+**⇄** intercambia origen y destino en una sola acción deshacible. Durante Floyd-Warshall también permite invertir la ruta consultada sin recalcular; se deshabilita cuando uno de los selectores está bloqueado. Al escribir un número de paso, la navegación espera a que pulses **Enter** o salgas del campo. Al llegar al final, **Repetir recorrido** reproduce los mismos estados desde el inicio.
 
 La reproducción se detiene al llegar al final, cambiar de algoritmo o detalle, cargar un preset, abrir otra pestaña, exportar o volver a editar. Cambiar de detalle navega sobre los mismos eventos ya calculados y elige una posición equivalente, sin recalcular ni volver obligatoriamente al inicio.
 
@@ -124,6 +126,8 @@ Las escrituras del conjunto de archivos preparan copias anteriores y restauran l
 ## Exportaciones PNG
 
 La pestaña **Exportar** reúne el formato, los pasos que se exportan y la carpeta de salida. Exporta el **paso actual**, **todos los pasos separados**, **imágenes conjuntas** o el **resultado final**. Por defecto se usa el detalle visible; para Dijkstra y Floyd-Warshall puedes elegir resumen o subpasos sin modificar la navegación en pantalla.
+
+Debajo de cada botón aparece la cantidad de PNG que se generarán con las opciones elegidas. Paso actual y resultado final producen una imagen; pasos separados produce una por estado exportado. Las conjuntas se cuentan con los tamaños y límites reales de la exportación, incluidos cambios de tamaño entre pasos. El cálculo se realiza por partes mientras la pestaña está abierta, sin crear PNG y sin bloquear la interfaz; sus resultados se reutilizan al volver a las mismas opciones.
 
 **Didáctico:** algoritmo, fase, numeración, grafo, explicación y leyenda. Bellman-Ford incluye lista completa de arcos y tabla; Floyd-Warshall incluye ambas matrices. Los resultados finales incluyen la ruta consultada y su costo cuando son válidos, o la explicación de ausencia de ruta/ciclo negativo.
 

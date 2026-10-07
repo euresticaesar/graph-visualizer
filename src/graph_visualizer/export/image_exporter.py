@@ -1,6 +1,7 @@
 """PNG rendering of the same immutable states used by the desktop navigation."""
 
 import math
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -142,6 +143,74 @@ def legend(state, graph):
     return common + " [distancia, predecesor] · Verde: fijado · Amarillo: tentativo."
 
 
+@dataclass
+class ImageLayout:
+    bounds: QRectF
+    width: int
+    height: int
+    graph_height: int
+    tables: list
+    widths: list
+    detail: str
+    detail_height: int
+    legend_height: int
+    top: int
+
+
+def measure_state(view, graph, state, start, target, *, simple=False):
+    """Measure the export using its scene and fonts, without allocating a raster image."""
+    if simple:
+        for item in view.nodes.values():
+            item.label.hide()
+            item.caption.hide()
+    bounds = view.scene().itemsBoundingRect().adjusted(-35, -35, 35, 35)
+    graph_width = max(1200, math.ceil(bounds.width()))
+    graph_height = max(650, math.ceil(bounds.height()))
+    tables = [] if simple else table_data(graph, state)
+    widths = [table_widths(headers, rows) for _, headers, rows in tables]
+    for (title, _, _), columns in zip(tables, widths, strict=True):
+        extra = math.ceil(QFontMetricsF(font(22, True)).horizontalAdvance(title)) + 8 - sum(columns)
+        if extra > 0:
+            columns[-1] += extra
+    width = max(graph_width + 64, sum(sum(w) for w in widths) + 96)
+    detail = f"Origen: {start} · Destino: {target}. {state.explanation}\n" + route_description(
+        state, start, target
+    )
+    flags = Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap
+    metrics = QFontMetricsF(font(20))
+    detail_height = (
+        math.ceil(metrics.boundingRect(QRectF(0, 0, width - 64, 100000), flags, detail).height())
+        + 16
+    )
+    legend_height = (
+        math.ceil(
+            metrics.boundingRect(
+                QRectF(0, 0, width - 64, 100000), flags, legend(state, graph)
+            ).height()
+        )
+        + 16
+    )
+    top = 0 if simple else 78 + detail_height
+    tables_height = max((len(rows) * 32 + 80 for _, _, rows in tables), default=0)
+    height = graph_height if simple else top + graph_height + tables_height + legend_height + 40
+    if simple:
+        width = graph_width
+    if width * height > 100_000_000:
+        raise ValueError("La imagen individual supera 100 megapíxeles; reduce el layout del grafo.")
+    return ImageLayout(
+        bounds,
+        width,
+        height,
+        graph_height,
+        tables,
+        widths,
+        detail,
+        detail_height,
+        legend_height,
+        top,
+    )
+
+
 def render_state(
     graph,
     positions,
@@ -161,50 +230,12 @@ def render_state(
     view.set_edge_ids_visible(show_edge_ids)
     try:
         view.apply_state(state, start, target, state.phase == "Resultado")
-        if simple:
-            for item in view.nodes.values():
-                item.label.hide()
-                item.caption.hide()
-        bounds = view.scene().itemsBoundingRect().adjusted(-35, -35, 35, 35)
-        graph_width = max(1200, math.ceil(bounds.width()))
-        graph_height = max(650, math.ceil(bounds.height()))
-        tables = [] if simple else table_data(graph, state)
-        widths = [table_widths(headers, rows) for _, headers, rows in tables]
-        for (title, _, _), columns in zip(tables, widths, strict=True):
-            extra = (
-                math.ceil(QFontMetricsF(font(22, True)).horizontalAdvance(title)) + 8 - sum(columns)
-            )
-            if extra > 0:
-                columns[-1] += extra
-        width = max(graph_width + 64, sum(sum(w) for w in widths) + 96)
-        detail = f"Origen: {start} · Destino: {target}. {state.explanation}\n" + route_description(
-            state, start, target
-        )
+        layout = measure_state(view, graph, state, start, target, simple=simple)
+        bounds, width, height = layout.bounds, layout.width, layout.height
+        graph_height, top = layout.graph_height, layout.top
+        tables, widths = layout.tables, layout.widths
+        detail_height, legend_height = layout.detail_height, layout.legend_height
         flags = Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap
-        metrics = QFontMetricsF(font(20))
-        detail_height = (
-            math.ceil(
-                metrics.boundingRect(QRectF(0, 0, width - 64, 100000), flags, detail).height()
-            )
-            + 16
-        )
-        legend_height = (
-            math.ceil(
-                metrics.boundingRect(
-                    QRectF(0, 0, width - 64, 100000), flags, legend(state, graph)
-                ).height()
-            )
-            + 16
-        )
-        top = 0 if simple else 78 + detail_height
-        tables_height = max((len(rows) * 32 + 80 for _, _, rows in tables), default=0)
-        height = graph_height if simple else top + graph_height + tables_height + legend_height + 40
-        if simple:
-            width = graph_width
-        if width * height > 100_000_000:
-            raise ValueError(
-                "La imagen individual supera 100 megapíxeles; reduce el layout del grafo."
-            )
         image = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
         if image.isNull():
             raise ValueError("No hay memoria suficiente para la imagen.")
@@ -223,7 +254,7 @@ def render_state(
                     f"· Paso {index}/{count - 1} · Evento {state.step}",
                 )
                 painter.setFont(font(20))
-                painter.drawText(QRectF(32, 78, width - 64, detail_height), flags, detail)
+                painter.drawText(QRectF(32, 78, width - 64, detail_height), flags, layout.detail)
             area = QRectF(
                 32 if not simple else 0, top, width - 64 if not simple else width, graph_height
             )
@@ -248,6 +279,49 @@ def render_state(
         finally:
             painter.end()
         return image
+    finally:
+        view.close()
+        view.deleteLater()
+
+
+def combined_capacity(width, height, remaining):
+    return max(
+        1,
+        min(4, MAX_COMBINED_PIXELS // (width * height), MAX_COMBINED_SIDE // height, remaining),
+    )
+
+
+def combined_image_count_job(
+    graph,
+    positions,
+    states,
+    start,
+    target,
+    *,
+    simple=False,
+    show_state_labels=True,
+    show_edge_ids=False,
+):
+    """Cooperative preview with the same sizes and page limits as the PNG exporter."""
+    view = GraphView(graph, positions)
+    view.set_editable(False)
+    view.set_state_labels_visible(show_state_labels)
+    view.set_edge_ids_visible(show_edge_ids)
+    size = None
+    capacity = used = pages = 0
+    try:
+        for index, state in enumerate(states):
+            view.apply_state(state, start, target, state.phase == "Resultado")
+            layout = measure_state(view, graph, state, start, target, simple=simple)
+            current_size = (layout.width, layout.height)
+            if current_size != size or used == capacity:
+                pages += 1
+                size = current_size
+                used = 0
+                capacity = combined_capacity(*size, len(states) - index)
+            used += 1
+            yield index + 1, pages
+        return pages
     finally:
         view.close()
         view.deleteLater()
@@ -319,15 +393,7 @@ def export_job(
                     flush()
                 if combined is None:
                     cell_width, cell_height = image.width(), image.height()
-                    capacity = max(
-                        1,
-                        min(
-                            4,
-                            MAX_COMBINED_PIXELS // (cell_width * cell_height),
-                            MAX_COMBINED_SIDE // cell_height,
-                            len(indices) - progress,
-                        ),
-                    )
+                    capacity = combined_capacity(cell_width, cell_height, len(indices) - progress)
                     combined = QImage(
                         cell_width,
                         cell_height * capacity,
