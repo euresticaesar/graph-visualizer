@@ -87,7 +87,9 @@ def bellman_ford_steps(graph, start, *, early_stop=False):
     original = distances.copy(), predecessors.copy(), keys.copy()
     seeds = set()
     emit(
-        phase="Verificación", explanation="Pasada adicional: detectar ciclos negativos alcanzables."
+        phase="Verificación",
+        iteration=len(graph),
+        explanation="Pasada adicional: detectar ciclos negativos alcanzables.",
     )
     for u, v, key, weight in arcs:
         before, pred, left = distances[v], predecessors[v], distances[u]
@@ -113,6 +115,7 @@ def bellman_ford_steps(graph, start, *, early_stop=False):
         )
         emit(
             phase="Verificación",
+            iteration=len(graph),
             current_node=u,
             current_edge=(u, v, key),
             comparison=comparison,
@@ -145,6 +148,7 @@ def bellman_ford_steps(graph, start, *, early_stop=False):
         distances[node], predecessors[node], keys[node] = -math.inf, None, None
     emit(
         phase="Resultado",
+        iteration=len(graph),
         summary=True,
         affected=frozenset(affected),
         cycle=tuple(cycle),

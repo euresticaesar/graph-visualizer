@@ -3,6 +3,7 @@ import math
 import networkx as nx
 from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -16,6 +17,7 @@ from dijkstra_visualizer.ui.node_combo_box import NodeComboBox
 
 
 class GraphEditor(QWidget):
+    graph_type_requested = Signal(bool)
     add_node_requested = Signal(object)
     rename_node_requested = Signal(object, object)
     delete_node_requested = Signal(object)
@@ -28,6 +30,19 @@ class GraphEditor(QWidget):
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 12, 0, 0)
         column.setSpacing(10)
+        self.graph_type = QComboBox()
+        self.graph_type.addItems(["No dirigido", "Dirigido"])
+        column.addWidget(self.graph_type)
+        hint = QLabel(
+            "No dirigido → dirigido: dos arcos por conexión. "
+            "Dirigido → no dirigido: conserva todos los arcos como conexiones "
+            "paralelas y reasigna claves en conflicto. Rechaza pesos negativos."
+        )
+        hint.setWordWrap(True)
+        column.addWidget(hint)
+        self.graph_type.currentIndexChanged.connect(
+            lambda index: self.graph_type_requested.emit(index == 1)
+        )
         self.node_combo = NodeComboBox()
         self.node_id = QLineEdit()
         self.node_id.setPlaceholderText("Nombre, letra o número")
@@ -100,6 +115,8 @@ class GraphEditor(QWidget):
 
     def set_graph(self, graph: nx.Graph) -> None:
         self.graph = graph
+        with QSignalBlocker(self.graph_type):
+            self.graph_type.setCurrentIndex(int(graph.is_directed()))
         for combo in (self.node_combo, self.source_combo, self.target_combo):
             selected = combo.currentData()
             with QSignalBlocker(combo):

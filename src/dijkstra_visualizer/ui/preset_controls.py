@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import networkx as nx
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -12,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from dijkstra_visualizer.core.graph import graphs_equal
 from dijkstra_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
 
 
@@ -58,6 +58,11 @@ class PresetControls:
             )
         return Preset(name, self.graph.copy(), self.graph_view.positions(), settings)
 
+    def remember_preset(self):
+        snapshot = self.history[self.history_index]
+        snapshot.preset_path = self.preset_path
+        snapshot.preset_baseline = self.preset_baseline
+
     def preset_fingerprint(self):
         document = self.current_preset().document()
         document.pop("name")
@@ -86,6 +91,7 @@ class PresetControls:
         write_preset(path, self.current_preset(name))
         self.preset_path = path
         self.preset_baseline = self.preset_fingerprint()
+        self.remember_preset()
         self.refresh_presets()
         self.preset_combo.setCurrentIndex(self.preset_combo.findData(path))
         return True
@@ -96,6 +102,7 @@ class PresetControls:
         name = read_preset(self.preset_path).name
         write_preset(self.preset_path, self.current_preset(name))
         self.preset_baseline = self.preset_fingerprint()
+        self.remember_preset()
         return True
 
     def load_selected_preset(self):
@@ -133,7 +140,7 @@ class PresetControls:
         if not self._commit_edit(snapshot):
             # Identical graph is a successful load; a failed write is not.
             if (
-                not nx.utils.graphs_equal(self.graph, preset.graph)
+                not graphs_equal(self.graph, preset.graph)
                 or self.graph_view.positions() != preset.positions
             ):
                 return False
@@ -142,6 +149,7 @@ class PresetControls:
             self.detail_checkbox.setChecked(preset.settings.get("detail", True) is True)
         self.preset_path = path
         self.preset_baseline = self.preset_fingerprint()
+        self.remember_preset()
         self.graph_view.fit_graph()
         return True
 
@@ -179,6 +187,7 @@ class PresetControls:
             path.unlink()
             if self.preset_path == path:
                 self.preset_path = None
+                self.remember_preset()
             self.refresh_presets()
 
     def import_preset(self):

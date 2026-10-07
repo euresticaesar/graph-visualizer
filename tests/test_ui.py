@@ -1,5 +1,6 @@
 import json
 
+from conftest import wait_idle
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QGraphicsItem
@@ -13,33 +14,35 @@ def test_playback_controls_and_reset(window, qapp):
     assert window.run_button.isEnabled()
     assert not window.previous_button.isEnabled()
     assert not window.next_button.isEnabled()
+    window.detail_checkbox.setChecked(False)
+    window.target_combo.setCurrentIndex(window.target_combo.findData("12"))
     QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
     assert window.state_index == 0
-    assert window.graph_view.nodes[1].label.text() == "[0, null]"
+    assert window.graph_view.nodes["1"].label.text() == "[0, null]"
     assert not window.start_combo.isEnabled()
-    assert not window.graph_view.nodes[1].flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+    assert not window.graph_view.nodes["1"].flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable
     states = window.states
     QTest.mouseClick(window.next_button, Qt.MouseButton.LeftButton)
     assert window.state_index == 1
-    assert window.graph_view.nodes[5].label.text() == "[2, 1]"
+    assert window.graph_view.nodes["5"].label.text() == "[2, 1]"
     QTest.mouseClick(window.previous_button, Qt.MouseButton.LeftButton)
-    assert window.graph_view.nodes[5].label.text() == "[∞, null]"
+    assert window.graph_view.nodes["5"].label.text() == "[∞, null]"
     assert window.states is states
     window.show_state(len(states) - 1)
     assert not window.next_button.isEnabled()
-    assert window.graph_view.edges[1, 5, 0].pen().color().name() == PATH
-    assert "distancia 16" in window.detail_label.text()
+    assert window.graph_view.edges["1", "5", 0].pen().color().name() == PATH
+    assert "Costo 16" in window.detail_label.text()
     window.reset()
     assert window.graph_view.positions() == positions
     assert not window.states
     assert window.start_combo.isEnabled()
-    assert window.graph_view.nodes[1].label.text() == "[∞, null]"
-    assert window.graph_view.edges[1, 5, 0].pen().widthF() == 2
+    assert window.graph_view.nodes["1"].label.text() == "[∞, null]"
+    assert window.graph_view.edges["1", "5", 0].pen().widthF() == 2
 
 
 def test_drag_updates_edges_and_persists_on_release(window, qapp):
     view = window.graph_view
-    node = view.nodes[1]
+    node = view.nodes["1"]
     layout_path = window.data_dir / "layout.json"
     old_contents = layout_path.read_text()
     original = node.pos()
@@ -48,7 +51,7 @@ def test_drag_updates_edges_and_persists_on_release(window, qapp):
     QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
     QTest.mouseMove(view.viewport(), finish, delay=10)
     assert node.pos() != original
-    assert view.edges[1, 2, 0].path().pointAtPercent(0) == node.pos()
+    assert view.edges["1", "2", 0].path().pointAtPercent(0) == node.pos()
     assert layout_path.read_text() == old_contents
     QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=finish)
     saved = json.loads(layout_path.read_text())
@@ -62,7 +65,7 @@ def test_algorithm_mode_prevents_dragging(window, qapp):
     window.initialize()
     view = window.graph_view
     positions = view.positions()
-    start = view.mapFromScene(view.nodes[1].pos())
+    start = view.mapFromScene(view.nodes["1"].pos())
     QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
     QTest.mouseMove(view.viewport(), start + QPoint(40, 40))
     QTest.mouseRelease(view.viewport(), Qt.MouseButton.LeftButton, pos=start + QPoint(40, 40))
@@ -73,8 +76,8 @@ def test_start_equals_target_supported(window):
     window.target_combo.setCurrentIndex(0)
     window.initialize()
     window.show_state(1)
-    assert "distancia 0" in window.detail_label.text()
-    assert window.graph_view.nodes[1].is_target
+    assert "Costo 0" in window.detail_label.text()
+    assert window.graph_view.nodes["1"].is_target
 
 
 def test_background_drag_pans(window):
@@ -96,11 +99,12 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
         window.initialize()
         window.show_state(len(window.states) - 1)
         assert "No hay ruta" in window.detail_label.text()
-        assert window.graph_view.nodes[3].label.text() == "[∞, null]"
-        assert window.graph_view.nodes[3].is_target
+        assert window.graph_view.nodes["3"].label.text() == "[∞, null]"
+        assert window.graph_view.nodes["3"].is_target
         assert all(edge.pen().widthF() == 2 for edge in window.graph_view.edges.values())
         window.export("final")
-        assert len(list(window.output_dir.glob("*/final_path.png"))) == 1
+        wait_idle(window)
+        assert len(list(window.output_dir.glob("*/resultado_final.png"))) == 1
     finally:
         window.close()
 
@@ -120,7 +124,7 @@ def test_failed_layout_save_restores_positions_and_history(window, monkeypatch):
 
     monkeypatch.setattr(main_window, "save_layout", failed_save)
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
-    window.graph_view.nodes[1].setPos(200, 150)
+    window.graph_view.nodes["1"].setPos(200, 150)
     window._save_layout()
     assert "No se pudo guardar el cambio" in warnings[0]
     assert window.graph_view.positions() == original

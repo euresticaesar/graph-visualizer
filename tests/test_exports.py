@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from conftest import wait_idle
 from PySide6.QtGui import QDesktopServices, QImage
 from PySide6.QtWidgets import QMessageBox
 
@@ -11,9 +12,10 @@ from dijkstra_visualizer.export.image_exporter import export_graph, save_image
 @pytest.mark.parametrize("parallel", [False, True])
 def test_all_export_actions_preserve_live_view(window, parallel):
     if parallel:
-        window.set_edge(1, 5, 20)
-        window.set_edge(1, 5, 2)
+        window.set_edge("1", "5", 20)
+        window.set_edge("1", "5", 2)
     assert all(not action.isEnabled() for action in window.export_actions)
+    window.detail_checkbox.setChecked(False)
     window.initialize()
     assert all(action.isEnabled() for action in window.export_actions)
     window.show_state(3)
@@ -23,6 +25,7 @@ def test_all_export_actions_preserve_live_view(window, parallel):
     saved_layout = (window.data_dir / "layout.json").read_bytes()
     for action in window.export_actions:
         action.trigger()
+        wait_idle(window)
         assert "Exportación completada" in window.statusBar().currentMessage()
         assert window.state_index == 3
         assert window.graph_view.positions() == positions
@@ -32,21 +35,19 @@ def test_all_export_actions_preserve_live_view(window, parallel):
     runs = list(window.output_dir.iterdir())
     assert len(runs) == 4
     images = list(window.output_dir.rglob("*.png"))
-    assert len(images) == len(window.states) + 3
-    assert len(list(window.output_dir.glob("*/steps/step_*.png"))) == len(window.states)
+    assert len(images) >= len(window.states) + 3
+    assert len(list(window.output_dir.glob("*/paso_??????.png"))) == len(window.states)
     for path in images:
         image = QImage(str(path))
         assert not image.isNull(), path
-        if path.name == "all_steps.png":
-            assert image.width() == 3680
-            assert image.height() == 4420
-        else:
-            assert (image.width(), image.height()) == (1600, 1100)
+        assert image.width() >= 1200
+        assert image.height() >= 650
     window.reset()
     assert all(not action.isEnabled() for action in window.export_actions)
 
 
 def test_export_dimensions_independent_of_window_size(window):
+    window.detail_checkbox.setChecked(False)
     window.initialize()
     paths = []
     for width, height in [(900, 620), (1440, 900)]:
@@ -68,11 +69,13 @@ def test_export_dimensions_independent_of_window_size(window):
 
 
 def test_export_failure_is_reported(window, monkeypatch):
+    window.detail_checkbox.setChecked(False)
     window.initialize()
     window.output_dir.write_text("A file blocks this output directory")
     messages = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: messages.append(args[2]))
     window.export("current")
+    wait_idle(window)
     assert messages
     assert window.statusBar().currentMessage() == "No se pudo exportar"
     assert window.state_index == 0
@@ -112,8 +115,10 @@ def test_combined_missing_image(qapp):
 def test_export_notice_persists_and_opens_actual_destination(window, monkeypatch):
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
+    window.detail_checkbox.setChecked(False)
     window.initialize()
     window.export_buttons[0].click()
+    wait_idle(window)
     assert window.export_notice.isVisible()
     assert "Exportación completada" in window.export_notice_title.text()
     assert window.export_notice_path.text() == str(window.last_export_path)

@@ -6,7 +6,6 @@ import networkx as nx
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
@@ -19,6 +18,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QSplitter,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -26,9 +27,9 @@ from PySide6.QtWidgets import (
 )
 
 from dijkstra_visualizer.core.dijkstra import dijkstra_steps
-from dijkstra_visualizer.core.graph import validate_graph
+from dijkstra_visualizer.core.graph import graphs_equal, validate_graph
 from dijkstra_visualizer.core.models import DijkstraState
-from dijkstra_visualizer.export.image_exporter import ExportKind, export_graph
+from dijkstra_visualizer.export.image_exporter import ExportKind, export_job
 from dijkstra_visualizer.io.graph_io import load_graph, save_graph_data
 from dijkstra_visualizer.io.layout_io import PositionMap, load_layout, save_layout
 from dijkstra_visualizer.paths import DATA_DIR, OUTPUT_DIR
@@ -51,6 +52,8 @@ class EditSnapshot:
     start: int
     target: int
     description: str
+    preset_path: Path | None = None
+    preset_baseline: dict | None = None
 
 
 class MainWindow(PresetControls, QMainWindow):
@@ -64,7 +67,11 @@ class MainWindow(PresetControls, QMainWindow):
         self.history: list[EditSnapshot] = []
         self.history_index = 0
         self.last_export_path: Path | None = None
-        self.setWindowTitle("Visualizador de Dijkstra · Fundamentos de IA")
+        self.play_timer = QTimer(self)
+        self.play_timer.timeout.connect(lambda: self.show_state(self.state_index + 1))
+        self.busy = False
+        self.worker = None
+        self.setWindowTitle("Visualizador de grafos · Caminos mínimos")
         self.resize(1380, 940)
         self.setMinimumSize(1040, 740)
         self.graph_view = GraphView(self.graph, positions)
@@ -74,6 +81,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.history.append(self._snapshot("Estado inicial"))
         self.reset()
         self.preset_baseline = self.preset_fingerprint()
+        self.remember_preset()
         QTimer.singleShot(0, self.graph_view.fit_graph)
 
     @property
@@ -122,11 +130,11 @@ class MainWindow(PresetControls, QMainWindow):
         row.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(340)
+        sidebar.setFixedWidth(365)
         controls = QVBoxLayout(sidebar)
         controls.setContentsMargins(20, 20, 20, 16)
         controls.setSpacing(12)
-        title = QLabel("Dijkstra")
+        title = QLabel("Caminos mínimos")
         title.setObjectName("title")
         controls.addWidget(title)
         self.mode_label = QLabel()
@@ -137,6 +145,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.tabs.addTab(self._scroll_page(self._algorithm_controls()), "Recorrido")
         self.editor = GraphEditor(self.graph)
         self.tabs.addTab(self._scroll_page(self.editor), "Editar grafo")
+        self.editor.graph_type_requested.connect(self.change_graph_type)
         self.editor.add_node_requested.connect(self.add_node)
         self.editor.rename_node_requested.connect(self.rename_node)
         self.editor.delete_node_requested.connect(self.delete_node)
@@ -147,6 +156,7 @@ class MainWindow(PresetControls, QMainWindow):
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
         self.graph_view.connection_requested.connect(self._connect_nodes)
         self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
+        self.tabs.currentChanged.connect(lambda index: self.stop_playback() if index else None)
         controls.addWidget(self.tabs, 1)
 
         self.state_labels_checkbox = QCheckBox("Mostrar etiquetas de estado")
@@ -165,9 +175,9 @@ class MainWindow(PresetControls, QMainWindow):
             [
                 ("●", "#64748b", "Sin alcanzar"),
                 ("●", "#b48412", "Tentativo"),
-                ("●", "#329758", "Visitado"),
-                ("●", "#18794e", "Actual"),
-                ("○", "#dc3545", "Destino"),
+                ("●", "#329758", "Fijado (Dijkstra)"),
+                ("●", "#18794e", "Nodo actual / k"),
+                ("━", "#e69b00", "Comparación"),
                 ("━", "#087e8b", "Ruta final"),
             ]
         ):
@@ -176,8 +186,11 @@ class MainWindow(PresetControls, QMainWindow):
         self.legend_grid.setColumnStretch(0, 1)
         self.legend_grid.setColumnStretch(1, 1)
         controls.addLayout(self.legend_grid)
-        notation = QLabel("[distancia, predecesor]\nNegritas: mejora en el paso actual")
+        self.notation = notation = QLabel(
+            "[distancia, predecesor]\nNegritas: mejora en el paso actual"
+        )
         notation.setObjectName("hint")
+        notation.setWordWrap(True)
         controls.addWidget(notation)
         export_row = QHBoxLayout()
         export_row.addWidget(QLabel("Exportar:"))
@@ -188,11 +201,11 @@ class MainWindow(PresetControls, QMainWindow):
                 ("Paso actual", "current"),
                 ("Pasos separados", "all"),
                 ("Imagen conjunta", "combined"),
-                ("Ruta final", "final"),
+                ("Resultado final", "final"),
             ]
         ):
             action = self._action(label, lambda checked=False, kind=kind: self.export(kind))
-            action.setToolTip("Inicia Dijkstra para exportar las imágenes a output/")
+            action.setToolTip("Inicia un algoritmo para exportar imágenes")
             self.export_actions.append(action)
             button = self._action_button(action)
             self.export_buttons.append(button)
@@ -232,6 +245,8 @@ class MainWindow(PresetControls, QMainWindow):
         self.view_hint.setObjectName("hint")
         self.view_hint.setWordWrap(True)
         graph_column.addWidget(self.view_hint)
+        graph_column.addWidget(self.step_label)
+        graph_column.addWidget(self.detail_label)
         self.export_notice = QFrame()
         self.export_notice.setObjectName("exportNotice")
         notice_row = QHBoxLayout(self.export_notice)
@@ -256,15 +271,26 @@ class MainWindow(PresetControls, QMainWindow):
         notice_row.addWidget(dismiss)
         self.export_notice.hide()
         graph_column.addWidget(self.export_notice)
-        graph_column.addWidget(self.graph_view, 1)
+        self.visual_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.visual_splitter.addWidget(self.graph_view)
+        graph_column.addWidget(self.visual_splitter, 1)
         from dijkstra_visualizer.ui.state_panel import MatrixPanel, StatePanel
 
         self.state_panel = StatePanel()
         self.state_panel.hide()
-        graph_column.addWidget(self.state_panel, 1)
+        self.visual_splitter.addWidget(self.state_panel)
         self.matrix_panel = MatrixPanel()
         self.matrix_panel.hide()
-        graph_column.addWidget(self.matrix_panel, 1)
+        self.visual_splitter.addWidget(self.matrix_panel)
+        export_options = QHBoxLayout()
+        self.export_style = QComboBox()
+        self.export_style.addItems(["Didáctico", "Simple (solo grafo)"])
+        self.export_detail = QComboBox()
+        self.export_detail.addItems(["Detalle visible", "Resumen", "Subpasos"])
+        export_options.addWidget(QLabel("Estilo de exportación"))
+        export_options.addWidget(self.export_style)
+        export_options.addWidget(self.export_detail)
+        graph_column.addLayout(export_options)
         graph_column.addLayout(export_row)
         row.addWidget(sidebar)
         row.addWidget(graph_panel, 1)
@@ -313,20 +339,48 @@ class MainWindow(PresetControls, QMainWindow):
         navigation.addWidget(self.previous_button)
         navigation.addWidget(self.next_button)
         controls.addLayout(navigation)
+        navigation2 = QHBoxLayout()
+        self.first_button = QPushButton("Inicio")
+        self.last_button = QPushButton("Final")
+        self.first_button.clicked.connect(lambda: self.show_state(0))
+        self.last_button.clicked.connect(lambda: self.show_state(len(self.states) - 1))
+        navigation2.addWidget(self.first_button)
+        navigation2.addWidget(self.last_button)
+        controls.addLayout(navigation2)
+        self.jump_step = QSpinBox()
+        self.jump_step.setPrefix("Paso ")
+        self.jump_step.valueChanged.connect(self.show_state)
+        controls.addWidget(self.jump_step)
+        self.jump_phase = QComboBox()
+        self.jump_phase.activated.connect(
+            lambda index: self.show_state(self.jump_phase.itemData(index))
+        )
+        controls.addWidget(self.jump_phase)
+        self.play_button = QPushButton("▶ Reproducir")
+        self.play_button.clicked.connect(self.toggle_playback)
+        controls.addWidget(self.play_button)
+        self.speed = QSpinBox()
+        self.speed.setRange(50, 10000)
+        self.speed.setValue(800)
+        self.speed.setSuffix(" ms / paso")
+        self.speed.valueChanged.connect(lambda value: self.play_timer.setInterval(value))
+        controls.addWidget(self.speed)
         self.reset_button = QPushButton("Volver a editar")
         self.reset_button.clicked.connect(self.reset)
         controls.addWidget(self.reset_button)
         self.step_label = QLabel()
         self.step_label.setObjectName("step")
-        controls.addWidget(self.step_label)
+        # Execution text lives above the graph, visible without sidebar scrolling.
         self.detail_label = QLabel()
         self.detail_label.setWordWrap(True)
-        controls.addWidget(self.detail_label)
+
         controls.addStretch()
         return page
 
     def _apply_style(self) -> None:
         self.setStyleSheet("""
+            QTableWidget { alternate-background-color: #edf2f7; background: white; }
+            QHeaderView::section { background: #e2e8f0; color: #172b4d; padding: 4px; }
             QMainWindow, QWidget { background: #f8fafc; color: #172b4d; }
             QWidget { font-family: 'Sans Serif'; font-size: 13px; }
             QFrame#sidebar { background: #ffffff; border-right: 1px solid #dce3ed; }
@@ -380,8 +434,8 @@ class MainWindow(PresetControls, QMainWindow):
             QTabWidget, QTabBar, QTabWidget > QStackedWidget { background: #ffffff; }
             QTabWidget::pane { border: 0; background: #ffffff; }
             QTabBar::tab {
-                padding: 9px 18px; background: #f1f5f9; border: 1px solid #cbd5e1;
-                min-width: 100px; margin-bottom: 8px;
+                padding: 9px 5px; background: #f1f5f9; border: 1px solid #cbd5e1;
+                min-width: 0px; margin-bottom: 8px;
             }
             QTabBar::tab:first {
                 border-top-left-radius: 19px; border-bottom-left-radius: 19px;
@@ -396,11 +450,18 @@ class MainWindow(PresetControls, QMainWindow):
 
     def _snapshot(self, description: str) -> EditSnapshot:
         return EditSnapshot(
-            self.graph.copy(), self.graph_view.positions(), self.start, self.target, description
+            self.graph.copy(),
+            self.graph_view.positions(),
+            self.start,
+            self.target,
+            description,
+            self.preset_path,
+            self.preset_baseline,
         )
 
     def _restore(self, snapshot: EditSnapshot) -> None:
-        topology_changed = not nx.utils.graphs_equal(self.graph, snapshot.graph)
+        self.preset_path, self.preset_baseline = snapshot.preset_path, snapshot.preset_baseline
+        topology_changed = not graphs_equal(self.graph, snapshot.graph)
         self.graph = snapshot.graph.copy()
         if topology_changed:
             self.graph_view.set_graph(self.graph, snapshot.positions)
@@ -428,7 +489,7 @@ class MainWindow(PresetControls, QMainWindow):
         current = self.history[self.history_index]
         try:
             validate_graph(snapshot.graph)
-            if not nx.utils.graphs_equal(current.graph, snapshot.graph):
+            if not graphs_equal(current.graph, snapshot.graph):
                 save_graph_data(self.data_dir, snapshot.graph, snapshot.positions)
             elif current.positions != snapshot.positions:
                 save_layout(self.data_dir / "layout.json", snapshot.positions)
@@ -446,7 +507,7 @@ class MainWindow(PresetControls, QMainWindow):
             return False
         current = self.history[self.history_index]
         if (
-            nx.utils.graphs_equal(current.graph, snapshot.graph)
+            graphs_equal(current.graph, snapshot.graph)
             and current.positions == snapshot.positions
             and (current.start, current.target) == (snapshot.start, snapshot.target)
         ):
@@ -460,7 +521,7 @@ class MainWindow(PresetControls, QMainWindow):
             self.history.pop(0)
         self.history_index = len(self.history) - 1
         self._sync_history()
-        saved = current.positions != snapshot.positions or not nx.utils.graphs_equal(
+        saved = current.positions != snapshot.positions or not graphs_equal(
             current.graph, snapshot.graph
         )
         message = snapshot.description + (" · Guardado" if saved else "")
@@ -665,6 +726,32 @@ class MainWindow(PresetControls, QMainWindow):
         return self._commit_edit(snapshot)
 
     def initialize(self) -> None:
+        self.stop_playback()
+        algorithm = self.algorithm_combo.currentText()
+        estimated = (
+            len(self.graph) ** 3
+            if algorithm == "Floyd-Warshall"
+            else len(self.graph) * self.graph.number_of_edges() * 2
+        )
+        if estimated > 5000:
+            from dijkstra_visualizer.ui.worker import AlgorithmWorker
+
+            self.busy = True
+            self.centralWidget().setEnabled(False)
+            self.statusBar().showMessage("Calculando estados en segundo plano…")
+            self.worker = AlgorithmWorker(
+                self.graph.copy(),
+                algorithm,
+                self.start,
+                self.target,
+                self.detail_checkbox.isChecked(),
+                self.early_stop.isChecked(),
+                self,
+            )
+            self.worker.ready.connect(self.execution_ready)
+            self.worker.failed.connect(self.execution_failed)
+            self.worker.start()
+            return
         try:
             if self.algorithm_combo.currentText() == "Floyd-Warshall":
                 from dijkstra_visualizer.core.floyd_warshall import floyd_warshall_steps
@@ -685,6 +772,18 @@ class MainWindow(PresetControls, QMainWindow):
         except ValueError as error:
             QMessageBox.warning(self, "No se pudo iniciar el algoritmo", str(error))
             return
+        self.execution_ready(self.states)
+
+    def execution_failed(self, message):
+        self.busy = False
+        self.centralWidget().setEnabled(True)
+        QMessageBox.warning(self, "No se pudo calcular", message)
+
+    def execution_ready(self, states):
+        self.busy = False
+        self.centralWidget().setEnabled(True)
+        self.states = states
+        self.refresh_navigation()
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(self.algorithm_combo.currentText() == "Floyd-Warshall")
         self.target_combo.setEnabled(self.algorithm_combo.currentText() != "Dijkstra")
@@ -701,6 +800,59 @@ class MainWindow(PresetControls, QMainWindow):
             action.setEnabled(True)
         self._sync_history()
         self.show_state(0)
+        self.visual_splitter.setSizes([300, 380, 380])
+        self.centralWidget().layout().activate()
+        self.graph_view.fit_graph()
+
+    def change_graph_type(self, directed):
+        from dijkstra_visualizer.core.graph import convert_graph
+
+        snapshot = self._snapshot("Cambiar tipo de grafo")
+        try:
+            snapshot.graph = convert_graph(self.graph, directed)
+            self._commit_edit(snapshot)
+        except ValueError as error:
+            self.editor.set_graph(self.graph)
+            self.editor.error_label.setText(str(error))
+
+    def stop_playback(self):
+        self.play_timer.stop()
+        if hasattr(self, "play_button"):
+            self.play_button.setText("▶ Reproducir")
+
+    def toggle_playback(self):
+        if self.play_timer.isActive():
+            self.stop_playback()
+        elif self.states and self.state_index < len(self.states) - 1:
+            self.play_timer.start(self.speed.value())
+            self.play_button.setText("Ⅱ Pausar")
+
+    def refresh_navigation(self):
+        with QSignalBlocker(self.jump_step):
+            self.jump_step.setRange(0, max(0, len(self.states) - 1))
+        self.jump_phase.clear()
+        seen = set()
+        for index, state in enumerate(self.states):
+            key = (state.iteration, state.phase)
+            if key not in seen:
+                self.jump_phase.addItem(f"{state.iteration} · {state.phase}", index)
+                seen.add(key)
+        for control in (
+            self.first_button,
+            self.last_button,
+            self.jump_step,
+            self.jump_phase,
+            self.play_button,
+        ):
+            control.setEnabled(bool(self.states))
+
+    def closeEvent(self, event):
+        self.stop_playback()
+        if self.busy:
+            self.statusBar().showMessage("Espera a que termine la operación antes de cerrar.")
+            event.ignore()
+            return
+        super().closeEvent(event)
 
     def algorithm_changed(self):
         self.reset()
@@ -709,23 +861,47 @@ class MainWindow(PresetControls, QMainWindow):
         self.detail_checkbox.setVisible(not bellman)
         self.detail_checkbox.setChecked(self.algorithm_combo.currentText() != "Floyd-Warshall")
         self.run_button.setText("Iniciar " + self.algorithm_combo.currentText())
+        algorithm = self.algorithm_combo.currentText()
+        self.detail_checkbox.setText("Por comparación")
+        self.detail_checkbox.setToolTip(
+            "Desmarcado: una iteración completa de k"
+            if algorithm == "Floyd-Warshall"
+            else "Desmarcado: resumen por nodo"
+        )
+        self.legend_grid.itemAtPosition(1, 0).widget().setVisible(algorithm == "Dijkstra")
+        self.notation.setText(
+            "Distancias desde el origen consultado · k: intermedio"
+            if algorithm == "Floyd-Warshall"
+            else "[distancia, predecesor] · Negritas: mejora"
+        )
 
     def change_detail(self):
+        self.stop_playback()
         if self.states:
             from dijkstra_visualizer.core.models import StateView
 
             step = self.states[self.state_index].step
             self.states = StateView(self.states.events, self.detail_checkbox.isChecked())
+            self.refresh_navigation()
             self.show_state(self.states.equivalent(step))
 
     def show_state(self, index: int) -> None:
         if not self.states or not 0 <= index < len(self.states):
             return
         self.state_index = index
+        phase_index = max(
+            (i for i in range(self.jump_phase.count()) if self.jump_phase.itemData(i) <= index),
+            default=0,
+        )
+        self.jump_phase.setCurrentIndex(phase_index)
+        with QSignalBlocker(self.jump_step):
+            self.jump_step.setValue(index)
         state = self.states[index]
         self.state_panel.show_state(self.graph, state)
         self.matrix_panel.show_state(state)
         final = index == len(self.states) - 1
+        if final:
+            self.stop_playback()
         self.graph_view.apply_state(state, self.start, self.target, final)
         self.previous_button.setEnabled(index > 0)
         self.next_button.setEnabled(not final)
@@ -735,15 +911,20 @@ class MainWindow(PresetControls, QMainWindow):
         self.detail_label.setText(
             state.explanation + "\n" + route_description(state, self.start, self.target)
         )
-        self.step_label.setText(f"{state.phase} · Paso {index} / {len(self.states) - 1}")
+        self.step_label.setText(
+            f"{state.algorithm} · {state.phase}\n"
+            f"Iteración {state.iteration} · Paso {index} / {len(self.states) - 1}"
+        )
 
     def reset(self) -> None:
+        self.stop_playback()
         for action in self.export_actions:
             action.setEnabled(False)
         self.states = []
         self.state_panel.hide()
         self.matrix_panel.hide()
         self.state_index = 0
+        self.refresh_navigation()
         self.graph_view.set_editable(True)
         self.graph_view.apply_state(None, self.start, self.target)
         self.start_combo.setEnabled(True)
@@ -771,37 +952,51 @@ class MainWindow(PresetControls, QMainWindow):
         self._sync_history()
 
     def export(self, kind: ExportKind) -> None:
-        self.statusBar().showMessage("Generando imágenes…")
-        self.statusBar().repaint()
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            destination = export_graph(
-                self.graph,
-                self.graph_view.positions(),
-                self.states,
-                self.start,
-                self.target,
-                self.state_index,
-                kind,
-                self.output_dir,
-                show_state_labels=self.graph_view.show_state_labels,
-            )
-        except (OSError, ValueError) as error:
-            QApplication.restoreOverrideCursor()
-            self.statusBar().showMessage("No se pudo exportar", 8000)
-            QMessageBox.warning(self, "No se pudo exportar", str(error))
+        if not self.states or self.busy:
             return
-        else:
-            QApplication.restoreOverrideCursor()
-        self.last_export_path = destination
-        count = len(self.states) if kind == "all" else 1
-        self.export_notice_title.setText(
-            f"✓ Exportación completada · {count} {'imágenes' if count != 1 else 'imagen'}"
+        self.stop_playback()
+        from dijkstra_visualizer.core.models import StateView
+
+        states = self.states
+        mode = self.export_detail.currentIndex()
+        if mode and self.algorithm_combo.currentText() != "Bellman-Ford":
+            states = StateView(self.states.events, mode == 2)
+        index = states.equivalent(self.states[self.state_index].step)
+        self.export_generator = export_job(
+            self.graph.copy(),
+            self.graph_view.positions(),
+            states,
+            self.start,
+            self.target,
+            index,
+            kind,
+            self.output_dir,
+            show_state_labels=self.graph_view.show_state_labels,
+            simple=self.export_style.currentIndex() == 1,
         )
-        self.export_notice_path.setText(str(destination))
-        self.export_notice.show()
-        self.statusBar().showMessage(f"Exportación completada · {destination}", 15000)
-        QApplication.alert(self, 3000)
+        self.busy = True
+        self.centralWidget().setEnabled(False)
+        self.statusBar().showMessage("Generando imágenes…")
+        QTimer.singleShot(0, self.advance_export)
+
+    def advance_export(self):
+        try:
+            completed, total = next(self.export_generator)
+            self.statusBar().showMessage(f"Exportando {completed}/{total}…")
+            QTimer.singleShot(0, self.advance_export)
+        except StopIteration as result:
+            self.busy = False
+            self.centralWidget().setEnabled(True)
+            self.last_export_path = result.value
+            self.export_notice_title.setText("✓ Exportación completada")
+            self.export_notice_path.setText(str(result.value))
+            self.export_notice.show()
+            self.statusBar().showMessage(f"Exportación completada · {result.value}")
+        except (OSError, ValueError) as error:
+            self.busy = False
+            self.centralWidget().setEnabled(True)
+            self.statusBar().showMessage("No se pudo exportar")
+            QMessageBox.warning(self, "No se pudo exportar", str(error))
 
     def _open_folder(self, folder: Path) -> None:
         try:

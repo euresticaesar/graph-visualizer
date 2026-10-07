@@ -1,7 +1,7 @@
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsObject, QGraphicsSimpleTextItem, QStyle
 
 from dijkstra_visualizer.core.models import format_number as format_distance
@@ -27,6 +27,13 @@ class NodeItem(QGraphicsObject):
     def __init__(self, node_id: int):
         super().__init__()
         self.node_id = node_id
+        self.node_width = max(
+            52,
+            QFontMetricsF(QFont("Sans Serif", 13, QFont.Weight.Bold)).horizontalAdvance(
+                str(node_id)
+            )
+            + 20,
+        )
         self.fill = QColor(UNREACHED)
         self.is_target = False
         self.is_current = False
@@ -53,7 +60,7 @@ class NodeItem(QGraphicsObject):
         self.set_state(math.inf, None, False, False, False, False, False)
 
     def boundingRect(self) -> QRectF:
-        return QRectF(-34, -34, 68, 68)
+        return QRectF(-self.node_width / 2 - 8, -34, self.node_width + 16, 68)
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -69,10 +76,14 @@ class NodeItem(QGraphicsObject):
             QPen(QColor(TARGET if self.is_target else "#64748b"), 3 if self.is_target else 1.5)
         )
         painter.setBrush(self.fill)
-        painter.drawEllipse(QRectF(-26, -26, 52, 52))
+        painter.drawEllipse(QRectF(-self.node_width / 2, -26, self.node_width, 52))
         painter.setPen(QColor("white" if self.is_current else "#172b4d"))
         painter.setFont(QFont("Sans Serif", 13, QFont.Weight.Bold))
-        painter.drawText(QRectF(-26, -26, 52, 52), Qt.AlignmentFlag.AlignCenter, str(self.node_id))
+        painter.drawText(
+            QRectF(-self.node_width / 2, -26, self.node_width, 52),
+            Qt.AlignmentFlag.AlignCenter,
+            str(self.node_id),
+        )
 
     def set_state(self, distance, predecessor, visited, current, start, target, updated) -> None:
         self.is_target, self.is_current = target, current
@@ -114,7 +125,7 @@ class NodeItem(QGraphicsObject):
 
     def _update_caption(self) -> None:
         parts = [*self.caption_roles]
-        if self.show_state_labels:
+        if self.show_state_labels and self.state_caption:
             parts.append(self.state_caption)
         self.caption.setText(" · ".join(parts))
         self.caption.setVisible(bool(parts))

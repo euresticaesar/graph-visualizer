@@ -21,37 +21,37 @@ def test_editor_buttons_add_rename_connect_and_change_weight(window, qapp):
     editor = window.editor
     editor.node_id.setText("13")
     QTest.mouseClick(editor.add_button, Qt.MouseButton.LeftButton)
-    assert 13 in window.graph_view.nodes
-    editor.source_combo.setCurrentIndex(editor.source_combo.findData(12))
-    editor.target_combo.setCurrentIndex(editor.target_combo.findData(13))
+    assert "13" in window.graph_view.nodes
+    editor.source_combo.setCurrentIndex(editor.source_combo.findData("12"))
+    editor.target_combo.setCurrentIndex(editor.target_combo.findData("13"))
     editor.weight_input.setText("2.5")
     QTest.mouseClick(editor.save_edge_button, Qt.MouseButton.LeftButton)
-    assert window.graph[12][13][0]["weight"] == 2.5
+    assert window.graph["12"]["13"][0]["weight"] == 2.5
     editor.weight_input.setText("1.25")
     QTest.mouseClick(editor.save_edge_button, Qt.MouseButton.LeftButton)
-    assert window.graph[12][13][0]["weight"] == 1.25
-    editor.node_combo.setCurrentIndex(editor.node_combo.findData(13))
+    assert window.graph["12"]["13"][0]["weight"] == 1.25
+    editor.node_combo.setCurrentIndex(editor.node_combo.findData("13"))
     editor.node_id.setText("14")
     QTest.mouseClick(editor.rename_button, Qt.MouseButton.LeftButton)
-    assert 13 not in window.graph
-    assert window.graph[12][14][0]["weight"] == 1.25
-    editor.source_combo.setCurrentIndex(editor.source_combo.findData(12))
-    editor.target_combo.setCurrentIndex(editor.target_combo.findData(14))
+    assert "13" not in window.graph
+    assert window.graph["12"]["14"][0]["weight"] == 1.25
+    editor.source_combo.setCurrentIndex(editor.source_combo.findData("12"))
+    editor.target_combo.setCurrentIndex(editor.target_combo.findData("14"))
     QTest.mouseClick(editor.delete_edge_button, Qt.MouseButton.LeftButton)
-    assert not window.graph.has_edge(12, 14)
+    assert not window.graph.has_edge("12", "14")
     QTest.mouseClick(editor.delete_button, Qt.MouseButton.LeftButton)
-    assert 14 not in window.graph
+    assert "14" not in window.graph
     assert_saved(window)
 
 
 def test_history_restores_topology_positions_and_endpoints(window):
     original_graph = window.graph.copy()
     original_positions = window.graph_view.positions()
-    assert window.add_node(13)
-    assert window.set_edge(12, 13, 2.5)
-    assert window.rename_node(1, 101)
-    assert window.start == 101
-    assert window.delete_node(12)
+    assert window.add_node("13")
+    assert window.set_edge("12", "13", 2.5)
+    assert window.rename_node("1", "101")
+    assert window.start == "101"
+    assert window.delete_node("12")
     assert window.target in window.graph
     final_graph = window.graph.copy()
     final_positions = window.graph_view.positions()
@@ -60,7 +60,7 @@ def test_history_restores_topology_positions_and_endpoints(window):
         assert_saved(window)
     assert nx.utils.graphs_equal(window.graph, original_graph)
     assert window.graph_view.positions() == original_positions
-    assert (window.start, window.target) == (1, 12)
+    assert (window.start, window.target) == ("1", "9")
     assert not window.undo_button.isEnabled()
     for _ in range(4):
         window.redo()
@@ -77,7 +77,7 @@ def test_history_restores_topology_positions_and_endpoints(window):
 def test_drag_is_one_undoable_action(window, qapp):
     view = window.graph_view
     original = view.positions()
-    start = view.mapFromScene(view.nodes[1].pos())
+    start = view.mapFromScene(view.nodes["1"].pos())
     QTest.mousePress(view.viewport(), Qt.MouseButton.LeftButton, pos=start)
     for offset in range(10, 50, 10):
         QTest.mouseMove(view.viewport(), start + QPoint(offset, offset))
@@ -95,35 +95,35 @@ def test_drag_is_one_undoable_action(window, qapp):
 
 
 def test_undo_redo_buttons_and_shortcuts(window, qapp):
-    window.add_node(13)
+    window.add_node("13")
     QTest.mouseClick(window.undo_button, Qt.MouseButton.LeftButton)
-    assert 13 not in window.graph
+    assert "13" not in window.graph
     QTest.mouseClick(window.redo_button, Qt.MouseButton.LeftButton)
-    assert 13 in window.graph
+    assert "13" in window.graph
     window.activateWindow()
     window.graph_view.setFocus()
     qapp.processEvents()
     QTest.keyClick(window.graph_view, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier)
-    assert 13 not in window.graph
+    assert "13" not in window.graph
     QTest.keyClick(window.graph_view, Qt.Key.Key_Y, Qt.KeyboardModifier.ControlModifier)
-    assert 13 in window.graph
+    assert "13" in window.graph
 
 
 def test_new_edit_clears_redo_and_selection_is_undoable(window):
-    window.start_combo.setCurrentIndex(window.start_combo.findData(5))
-    assert window.start == 5
+    window.start_combo.setCurrentIndex(window.start_combo.findData("5"))
+    assert window.start == "5"
     window.undo()
-    assert window.start == 1
+    assert window.start == "1"
     window.redo()
-    assert window.start == 5
-    window.add_node(13)
+    assert window.start == "5"
+    window.add_node("13")
     window.undo()
-    window.add_node(14)
+    window.add_node("14")
     assert not window.redo_action.isEnabled()
-    assert 13 not in window.graph and 14 in window.graph
+    assert "13" not in window.graph and "14" in window.graph
 
 
-@pytest.mark.parametrize("value", ["-1", "0", "nan", "inf", "abc", ""])
+@pytest.mark.parametrize("value", ["-1", "nan", "inf", "abc", ""])
 def test_editor_rejects_invalid_weight(window, value):
     original = window.graph.copy()
     window.editor.weight_input.setText(value)
@@ -134,35 +134,35 @@ def test_editor_rejects_invalid_weight(window, value):
 
 
 def test_duplicate_id_and_last_node_are_rejected(window):
-    assert not window.add_node(1)
-    assert not window.rename_node(2, 1)
+    assert not window.add_node("1")
+    assert not window.rename_node("2", "1")
     assert window.history_index == 0
     for node in list(window.graph)[1:]:
         window.delete_node(node)
-    assert not window.delete_node(1)
-    assert set(window.graph) == {1}
+    assert not window.delete_node("1")
+    assert set(window.graph) == {"1"}
     assert_saved(window)
 
 
 def test_algorithm_locks_editing_and_history_survives_reset(window):
-    window.add_node(13)
+    window.add_node("13")
     window.initialize()
     assert not window.editor.isEnabled()
     assert not window.tabs.isTabEnabled(1)
     assert not window.undo_action.isEnabled()
-    assert not window.add_node(14)
-    assert not window.delete_node(1)
-    assert not window.set_edge(1, 13, 4)
+    assert not window.add_node("14")
+    assert not window.delete_node("1")
+    assert not window.set_edge("1", "13", 4)
     window.undo()
-    assert 13 in window.graph
+    assert "13" in window.graph
     window.reset()
     assert window.editor.isEnabled()
     window.undo()
-    assert 13 not in window.graph
+    assert "13" not in window.graph
 
 
 def test_failed_undo_keeps_history_and_graph(window, monkeypatch):
-    window.add_node(13)
+    window.add_node("13")
     original_index = window.history_index
     before = {path: path.read_bytes() for path in window.data_dir.iterdir()}
     warnings = []
@@ -174,7 +174,7 @@ def test_failed_undo_keeps_history_and_graph(window, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[2]))
     window.undo()
     assert window.history_index == original_index
-    assert 13 in window.graph
+    assert "13" in window.graph
     assert "No se pudo guardar el cambio" in warnings[0]
     assert {path: path.read_bytes() for path in window.data_dir.iterdir()} == before
 
@@ -194,24 +194,25 @@ def test_visible_actions_legend_and_exit(window):
 def test_enter_renames_to_zero_and_saves_weight(window, key):
     window.tabs.setCurrentIndex(1)
     editor = window.editor
-    editor.node_combo.setCurrentIndex(editor.node_combo.findData(1))
+    editor.node_combo.setCurrentIndex(editor.node_combo.findData("1"))
     editor.node_id.setText("0")
     QTest.keyClick(editor.node_id, key)
-    assert 0 in window.graph and 1 not in window.graph
-    assert window.start == 0
-    editor.source_combo.setCurrentIndex(editor.source_combo.findData(0))
-    editor.target_combo.setCurrentIndex(editor.target_combo.findData(2))
+    assert "0" in window.graph and "1" not in window.graph
+    assert window.start == "0"
+    editor.source_combo.setCurrentIndex(editor.source_combo.findData("0"))
+    editor.target_combo.setCurrentIndex(editor.target_combo.findData("2"))
     editor.weight_input.setText("3.5")
     QTest.keyClick(editor.weight_input, key)
-    assert window.graph[0][2][0]["weight"] == 3.5
+    assert window.graph["0"]["2"][0]["weight"] == 3.5
     assert_saved(window)
+    window.detail_checkbox.setChecked(False)
     window.initialize()
     window.show_state(1)
-    assert window.graph_view.nodes[2].label.text() == "[3.5, 0]"
+    assert window.graph_view.nodes["2"].label.text() == "[3.5, 0]"
 
 
 def test_large_id_can_be_added_selected_and_reloaded(window):
-    large_id = 10**30
+    large_id = str(10**30)
     window.editor.node_id.setText(str(large_id))
     window.editor.add_button.click()
     assert large_id in window.graph
@@ -221,13 +222,15 @@ def test_large_id_can_be_added_selected_and_reloaded(window):
     assert_saved(window)
     reopened = MainWindow(window.data_dir, window.output_dir)
     try:
-        assert reopened.target_combo.currentData() == large_id
+        assert large_id in [
+            reopened.target_combo.itemData(i) for i in range(reopened.target_combo.count())
+        ]
         assert large_id in reopened.graph_view.nodes
     finally:
         reopened.close()
 
 
-@pytest.mark.parametrize("value", ["-1", "0.5", "1.0"])
+@pytest.mark.parametrize("value", ["", " ", "2"])
 def test_enter_rejects_invalid_id_without_changing_graph(window, value):
     original = window.graph.copy()
     window.editor.node_id.setText(value)

@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QStyledItemDelegate,
     QTableWidget,
@@ -116,6 +117,9 @@ class MatrixPanel(QWidget):
             table = QTableWidget()
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setItemDelegate(MatrixDelegate(table))
+            table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+            table.setHorizontalHeader(MatrixHeader(Qt.Orientation.Horizontal, table))
+            table.setVerticalHeader(MatrixHeader(Qt.Orientation.Vertical, table))
             column.addWidget(table)
             row.addLayout(column)
             self.tables.append(table)
@@ -152,3 +156,24 @@ class MatrixPanel(QWidget):
             table.resizeColumnsToContents()
             if state.cell:
                 table.scrollToItem(table.item(*state.cell))
+
+
+class MatrixHeader(QHeaderView):
+    """Paint model header colors even when a desktop style ignores BackgroundRole."""
+
+    def paintSection(self, painter, rect, logical_index):
+        if not rect.isValid():
+            return
+        painter.save()
+        color = self.model().headerData(
+            logical_index, self.orientation(), Qt.ItemDataRole.BackgroundRole
+        )
+        painter.fillRect(rect, color if color is not None else QColor("#e2e8f0"))
+        painter.setPen(QColor("#cbd5e1"))
+        painter.drawRect(rect.adjusted(0, 0, -1, -1))
+        painter.setPen(QColor("#172b4d"))
+        text = self.model().headerData(
+            logical_index, self.orientation(), Qt.ItemDataRole.DisplayRole
+        )
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(text))
+        painter.restore()

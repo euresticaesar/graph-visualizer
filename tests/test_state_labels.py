@@ -1,4 +1,5 @@
 import pytest
+from conftest import wait_idle
 
 from dijkstra_visualizer.export import image_exporter
 from dijkstra_visualizer.ui.node_item import NodeItem
@@ -46,7 +47,7 @@ def test_toggle_preserves_roles_distances_and_execution(window):
 
 def test_hidden_labels_survive_scene_rebuild_undo_and_shared_endpoint(window):
     window.state_labels_checkbox.setChecked(False)
-    window.add_node(13)
+    window.add_node("13")
     assert_roles_only(window.graph_view, window.start, window.target)
     window.undo()
     assert_roles_only(window.graph_view, window.start, window.target)
@@ -62,13 +63,15 @@ def test_hidden_labels_survive_scene_rebuild_undo_and_shared_endpoint(window):
 @pytest.mark.parametrize("kind", ["current", "all", "combined", "final"])
 def test_exports_follow_checkbox_without_modifying_graph(window, monkeypatch, kind):
     before = data_contents(window)
-    window.target_combo.setCurrentIndex(window.target_combo.findData(2))
+    window.target_combo.setCurrentIndex(window.target_combo.findData("2"))
     window.state_labels_checkbox.setChecked(False)
     window.initialize()
     calls = []
-    render = image_exporter.render_scene
+    render = image_exporter.GraphView.apply_state
 
-    def inspect_scene(scene, *args, **kwargs):
+    def inspect_scene(view, *args, **kwargs):
+        result = render(view, *args, **kwargs)
+        scene = view.scene()
         nodes = [item for item in scene.items() if isinstance(item, NodeItem)]
         assert nodes
         for item in nodes:
@@ -81,10 +84,11 @@ def test_exports_follow_checkbox_without_modifying_graph(window, monkeypatch, ki
             assert item.caption.isVisible() == bool(expected)
             assert item.label.isVisible()
         calls.append(scene)
-        return render(scene, *args, **kwargs)
+        return result
 
-    monkeypatch.setattr(image_exporter, "render_scene", inspect_scene)
+    monkeypatch.setattr(image_exporter.GraphView, "apply_state", inspect_scene)
     window.export(kind)
+    wait_idle(window)
     assert len(calls) == (len(window.states) if kind in {"all", "combined"} else 1)
     assert window.last_export_path.exists()
     assert_roles_only(window.graph_view, window.start, window.target)

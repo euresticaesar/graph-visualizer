@@ -140,6 +140,12 @@ class GraphView(QGraphicsView):
             )
             if state and state.algorithm != "Dijkstra":
                 item.state_caption = "sin mínimo finito" if node in state.affected else ""
+                if state.algorithm == "Floyd-Warshall":
+                    from dijkstra_visualizer.core.models import format_number
+
+                    distance = state.matrix[state.nodes.index(start)][state.nodes.index(node)]
+                    item.label.setText(format_number(distance))
+                    item.label.setPos(-item.label.boundingRect().width() / 2, 35)
                 item._update_caption()
                 if node in state.affected:
                     item.fill = QColor("#fecaca")

@@ -29,7 +29,7 @@ class EdgeItem(QGraphicsPathItem):
         self.setZValue(-1)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setToolTip(f"Conexión {key} · Haz clic para cambiar el peso")
-        self.label = WeightLabel(format_distance(weight), self)
+        self.label = WeightLabel(f"{format_distance(weight)} · #{key}", self)
         self.label.setFont(QFont("Sans Serif", 11, QFont.Weight.DemiBold))
         self.label.setBrush(QColor("#475569"))
         self.label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -53,7 +53,9 @@ class EdgeItem(QGraphicsPathItem):
         if self.directed:
             path = self.path()
             t = 0.98
-            while t > 0.1 and (path.pointAtPercent(t) - self.target.pos()).manhattanLength() < 42:
+            while t > 0.1 and self.target.boundingRect().contains(
+                path.pointAtPercent(t) - self.target.pos()
+            ):
                 t -= 0.01
             tip = path.pointAtPercent(t)
             delta = tip - path.pointAtPercent(max(0, t - 0.02))

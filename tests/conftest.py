@@ -26,6 +26,18 @@ def window(qapp, tmp_path):
     window.show()
     qapp.processEvents()
     yield window
+    wait_idle(window)
     window.close()
     window.deleteLater()
     qapp.processEvents()
+
+
+def wait_idle(window):
+    from PySide6.QtCore import QElapsedTimer
+    from PySide6.QtTest import QTest
+
+    timer = QElapsedTimer()
+    timer.start()
+    while window.busy and timer.elapsed() < 30000:
+        QTest.qWait(10)
+    assert not window.busy

@@ -8,9 +8,9 @@ from dijkstra_visualizer.io.layout_io import load_layout
 
 def test_save_topology_and_layout_round_trip(tmp_path):
     graph = nx.MultiGraph()
-    graph.add_nodes_from([1, 2, 3])
-    graph.add_edge(2, 1, weight=0.125)
-    positions = {1: (10, 20), 2: (30, 40), 3: (-10, 5)}
+    graph.add_nodes_from(["1", "2", "3"])
+    graph.add_edge("2", "1", weight=0.125)
+    positions = {"1": (10, 20), "2": (30, 40), "3": (-10, 5)}
     save_graph_data(tmp_path, graph, positions)
     reloaded = load_graph(tmp_path / "nodes.csv", tmp_path / "edges.csv")
     assert nx.utils.graphs_equal(reloaded, graph)
@@ -40,11 +40,11 @@ def test_partial_save_failure_restores_all_original_files(tmp_path, monkeypatch)
 
 def test_invalid_edit_does_not_touch_files(tmp_path):
     graph = nx.Graph()
-    graph.add_edge(1, 2, weight=1)
-    positions = {1: (0, 0), 2: (100, 0)}
+    graph.add_edge("1", "2", weight=1)
+    positions = {"1": (0, 0), "2": (100, 0)}
     save_graph_data(tmp_path, graph, positions)
     before = {path: path.read_bytes() for path in tmp_path.iterdir()}
-    graph[1][2]["weight"] = -1
+    graph["1"]["2"]["weight"] = -1
     with pytest.raises(ValueError):
         save_graph_data(tmp_path, graph, positions)
     assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before

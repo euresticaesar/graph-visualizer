@@ -71,3 +71,7 @@ def convert_graph(graph: nx.Graph, directed: bool) -> nx.Graph:
             result.add_edge(v, u, key=chosen, **data)
     validate_graph(result)
     return result
+
+
+def graphs_equal(left, right):
+    return left.is_directed() == right.is_directed() and nx.utils.graphs_equal(left, right)

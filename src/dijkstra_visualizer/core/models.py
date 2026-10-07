@@ -11,7 +11,8 @@ from dijkstra_visualizer.core.graph import EdgeId
 def format_number(value: float) -> str:
     if math.isinf(value):
         return "−∞" if value < 0 else "∞"
-    return f"{value:.6f}".rstrip("0").rstrip(".") or "0"
+    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    return "0" if text in {"", "-0"} else text
 
 
 @dataclass(frozen=True)

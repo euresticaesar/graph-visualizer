@@ -37,12 +37,14 @@ class Preset:
 
 def parse_preset(data) -> Preset:
     try:
-        if not isinstance(data, dict) or data["version"] != 1:
+        if not isinstance(data, dict) or type(data["version"]) is not int or data["version"] != 1:
             raise ValueError("Versión de preset no compatible.")
         if not isinstance(data["name"], str) or not data["name"].strip():
             raise ValueError("El preset necesita un nombre.")
         if type(data["directed"]) is not bool:
             raise ValueError("Tipo de grafo no válido.")
+        if not isinstance(data["nodes"], list) or not isinstance(data["edges"], list):
+            raise ValueError("Nodos y conexiones deben ser listas.")
         graph = nx.MultiDiGraph() if data["directed"] else nx.MultiGraph()
         for value in data["nodes"]:
             node = normalize_id(value)
@@ -76,7 +78,19 @@ def parse_preset(data) -> Preset:
         settings = data.get("settings", {})
         if not isinstance(settings, dict):
             raise ValueError("Ajustes no válidos.")
-        # Only harmless, known view settings are accepted.
+        if "algorithm" in settings and settings["algorithm"] not in (
+            "Dijkstra",
+            "Bellman-Ford",
+            "Floyd-Warshall",
+        ):
+            raise ValueError("Algoritmo de preset no válido.")
+        for endpoint in ("start", "target"):
+            if endpoint in settings:
+                settings[endpoint] = normalize_id(settings[endpoint])
+                if settings[endpoint] not in graph:
+                    raise ValueError("El origen/destino del preset debe existir.")
+        if "detail" in settings and type(settings["detail"]) is not bool:
+            raise ValueError("El detalle debe ser booleano.")
         settings = {
             k: v for k, v in settings.items() if k in {"algorithm", "start", "target", "detail"}
         }

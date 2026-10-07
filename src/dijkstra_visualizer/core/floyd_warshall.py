@@ -119,6 +119,7 @@ def floyd_warshall_steps(graph, *, detailed=False):
     changed = frozenset()
     emit(
         phase="Resultado",
+        iteration=n,
         summary=True,
         affected=affected,
         explanation=(
