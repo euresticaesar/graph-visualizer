@@ -9,7 +9,7 @@ Aplicación de escritorio en español para crear y editar grafos y explorar paso
 Requiere **Python 3.12+**, **uv** y un entorno gráfico. Desde la raíz del repositorio:
 
 ```bash
-uv sync
+uv sync --frozen
 uv run graph-visualizer
 ```
 
@@ -32,4 +32,5 @@ En **Editar** crea o modifica el grafo; en **Recorrido** elige el algoritmo, ori
 | Auditoría | [Hallazgos, correcciones y estado de las siete tareas](docs/auditoria.md) |
 | Arquitectura | [Organización del código y rendimiento](docs/arquitectura.md) |
 | Desarrollo | [Pruebas, estilo y construcción del paquete](docs/desarrollo.md) |
+| Repositorio | [Archivos versionados y preparación para subir](docs/desarrollo.md#archivos-del-repositorio) |
 | Versiones | [Cambios de 0.3.0](CHANGELOG.md) |

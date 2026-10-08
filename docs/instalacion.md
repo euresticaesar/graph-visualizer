@@ -5,7 +5,7 @@
 Requiere **Python 3.12+**, **uv** y un entorno gráfico. Desde la raíz del repositorio:
 
 ```bash
-uv sync
+uv sync --frozen
 uv run graph-visualizer
 ```
 
@@ -18,6 +18,8 @@ uv run graph-visualizer --data-dir /tmp/mi-grafo --output-dir /tmp/mis-imagenes
 ```
 
 El primer arranque de un directorio vacío crea el ejemplo de 12 nodos. Desde un checkout se conserva `data/` como directorio predeterminado de trabajo y `output/` para PNG/PDF/SVG. Una instalación de la distribución usa `$XDG_DATA_HOME/graph-visualizer` o `~/.local/share/graph-visualizer`. Las variables `GRAPH_VISUALIZER_DATA_DIR` y `GRAPH_VISUALIZER_OUTPUT_DIR` también permiten elegir las rutas, independientemente del directorio desde el que se lance el comando.
+
+`uv.lock` y `.python-version` se incluyen en el repositorio; `--frozen` instala las versiones fijadas sin actualizar el lock. En el checkout, `data/example/` conserva los CSV y posiciones del ejemplo de arranque. El resto de `data/`, las exportaciones de `output/`, `.venv/` y los paquetes generados en `dist/` son archivos locales excluidos de Git.
 
 PySide6 necesita un entorno gráfico. Para pruebas sin pantalla se utiliza `QT_QPA_PLATFORM=offscreen`; consulta la [guía de desarrollo](desarrollo.md).
 

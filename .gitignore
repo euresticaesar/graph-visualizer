@@ -1,26 +1,49 @@
 # Archivos generados por Python
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*.egg-info/
+.eggs/
+/build/
+/dist/
+/wheels/
 
 # Entornos virtuales
-.venv
+.venv/
+venv/
+.tox/
+.nox/
 
-# Imágenes exportadas
-output/
+# Exportaciones locales; las muestras de docs/images/ se versionan
+/output/
 
 # Cachés de herramientas
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
-# Datos locales del usuario
-/data/nodes.csv
-/data/edges.csv
-/data/layout.json
+# Trabajo, preferencias, presets, perfiles y temporales locales
+# Se conserva el ejemplo de arranque que usa initialize_graph_data.
+/data/*
+!/data/example/
 
-/data/graph.json
-/data/presets/
-/data/preferences.json
+# Configuración local de entorno y editores
+.env
+.env.*
+!/.env.example
+!/.env.sample
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Metadatos del sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini

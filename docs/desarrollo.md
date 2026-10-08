@@ -8,6 +8,36 @@ Desde la raíz del repositorio, instala las dependencias de desarrollo:
 uv sync --frozen --group dev
 ```
 
+## Archivos del repositorio
+
+Se versionan los archivos necesarios para ejecutar, validar y documentar la aplicación:
+
+| Archivos | Motivo |
+| --- | --- |
+| `src/`, incluidos los cuatro presets JSON de `examples/` | Código y ejemplos incluidos en la distribución |
+| `tests/` y `tests/fixtures/` | Pruebas, datos de entrada y referencias visuales revisadas |
+| `.github/workflows/ci.yml`, `pyproject.toml`, `uv.lock` y `.python-version` | CI, configuración y dependencias reproducibles |
+| `scripts/` | Regeneración reproducible de referencias y muestras |
+| `README.md`, `CHANGELOG.md`, `docs/` y `demo_screenshot.png` | Documentación y evidencias visuales; los PNG/PDF son deliberados |
+| `data/example/` | CSV y layout del ejemplo de arranque de 12 nodos usado en el checkout |
+| `.gitignore` | Exclusión de archivos locales y generados |
+
+`.gitignore` excluye el resto de `data/`, incluidos preferencias, presets personales, perfiles de presentación y temporales de escritura; también `output/`, entornos virtuales, paquetes de `dist/`, cachés, cobertura, configuración local de editores y metadatos del sistema. Los archivos `.env` locales se excluyen; las plantillas `.env.example` y `.env.sample` pueden versionarse si se añaden. La aplicación toma sus rutas de argumentos y variables de entorno; no carga archivos `.env` automáticamente.
+
+Ignorar un archivo conserva su copia local y no retira archivos ya rastreados. Los JSON, CSV, PNG y PDF útiles no se excluyen globalmente: los ejemplos, fixtures y muestras deben seguir disponibles al clonar. Al usar un `--data-dir` o `--output-dir` distinto dentro del checkout, añade su ruta a `.git/info/exclude` para mantener esa configuración personal fuera de Git.
+
+Antes de subir cambios, revisa:
+
+```bash
+git status --short --branch
+git diff --check
+git diff --cached --check
+git ls-files --others --exclude-standard
+git ls-files --cached --ignored --exclude-standard
+```
+
+La última orden detecta archivos rastreados que ahora coinciden con `.gitignore`. Debe quedar vacía en el estado actual. Ejecuta las comprobaciones siguientes cuando cambien código, dependencias o referencias; revisa los archivos de cada commit y conserva las muestras necesarias. Un árbol limpio indica que todos los cambios elegidos ya están committed; los archivos ignorados permanecen solo en el equipo. Hacer commit y hacer push son pasos independientes.
+
 ## Comprobaciones
 
 ```bash
