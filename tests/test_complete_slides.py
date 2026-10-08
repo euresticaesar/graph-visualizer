@@ -152,6 +152,19 @@ def test_table_corner_and_unused_header_follow_theme(window, qapp, theme, custom
         )
         image = corner.grab().toImage()
         assert image.pixelColor(image.width() // 2, image.height() // 2).name() == expected
+        image = table.viewport().grab().toImage()
+        assert (
+            image.pixelColor(image.width() - 8, image.height() - 8).name() == window.palette.surface
+        )
+        table.setRowCount(40)
+        table.setColumnCount(20)
+        qapp.processEvents()
+        horizontal, vertical = table.horizontalScrollBar(), table.verticalScrollBar()
+        assert horizontal.isVisible() and vertical.isVisible()
+        image = table.grab().toImage()
+        x = table.width() - vertical.width() // 2 - table.frameWidth()
+        y = table.height() - horizontal.height() // 2 - table.frameWidth()
+        assert image.pixelColor(x, y).name() == window.palette.inset
     finally:
         table.close()
         table.deleteLater()

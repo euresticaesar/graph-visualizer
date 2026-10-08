@@ -43,6 +43,10 @@ def export_preset(args):
         resolution=args.resolution,
         layout=args.layout,
         font_scale=args.font_scale,
+        composition=args.composition,
+        graph_fraction=args.graph_fraction,
+        dim_unrelated=args.dim_unrelated,
+        show_focus=args.focus,
         simple=args.simple,
         title=preset.name,
     )

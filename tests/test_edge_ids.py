@@ -5,7 +5,7 @@ from conftest import wait_idle
 from PySide6.QtTest import QTest
 
 from graph_visualizer.core.models import format_number
-from graph_visualizer.export import image_exporter
+from graph_visualizer.ui.graph_view import GraphView
 
 
 def assert_edge_labels(view, visible):
@@ -70,7 +70,7 @@ def test_png_exports_follow_connection_id_toggle(window, monkeypatch, kind, visi
     window.export_style.setCurrentIndex(int(kind in {"combined", "final"}))
     window.initialize()
     calls = []
-    apply_state = image_exporter.GraphView.apply_state
+    apply_state = GraphView.apply_state
 
     def inspect(view, *args, **kwargs):
         result = apply_state(view, *args, **kwargs)
@@ -78,7 +78,7 @@ def test_png_exports_follow_connection_id_toggle(window, monkeypatch, kind, visi
         calls.append(view.show_edge_ids)
         return result
 
-    monkeypatch.setattr(image_exporter.GraphView, "apply_state", inspect)
+    monkeypatch.setattr(GraphView, "apply_state", inspect)
     window.preview_before_export.setChecked(False)
     window.export(kind)
     wait_idle(window)

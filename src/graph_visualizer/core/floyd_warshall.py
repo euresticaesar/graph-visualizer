@@ -106,7 +106,7 @@ def floyd_warshall_steps(graph, *, detailed=False, _cancelled=None):
             current_node=intermediate,
             summary=True,
             explanation=f"k = {intermediate}: {len(changed)} entradas mejoradas. "
-            "Amarillo: cambios de esta iteración; verde: fila y columna de k.",
+            "Cambios resaltados en negritas; borde: fila y columna de k.",
         )
     negative = [k for k in range(n) if distances[k][k] < 0]
     affected = frozenset(

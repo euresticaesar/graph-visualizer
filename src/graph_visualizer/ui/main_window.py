@@ -72,8 +72,16 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             QTimer.singleShot(0, self.refit_workspace)
 
     def refit_workspace(self):
-        if self.graph_view.auto_fit and not self.busy:
-            self.graph_view.fit_graph()
+        if getattr(self, "refitting_workspace", False):
+            return
+        self.refitting_workspace = True
+        try:
+            if hasattr(self, "state_panel"):
+                self.adapt_workspace_density()
+            if self.graph_view.auto_fit and not self.busy:
+                self.graph_view.fit_graph()
+        finally:
+            self.refitting_workspace = False
 
     def __init__(self, data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR):
         super().__init__()
@@ -225,7 +233,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.data_button.clicked.connect(self.open_graph_data)
         toolbar.addWidget(self.data_button)
         graph_column.addLayout(toolbar)
-        workspace_tools = QHBoxLayout()
+        workspace_tools = QGridLayout()
         self.appearance_button = QPushButton("Personalizar")
         self.appearance_button.clicked.connect(self.open_appearance)
         self.profiles_button = QPushButton("Perfiles")
@@ -241,15 +249,20 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.bookmark_button = QPushButton("Marcar paso")
         self.bookmark_button.setCheckable(True)
         self.bookmark_button.clicked.connect(self.toggle_bookmark)
-        for button in (
-            self.appearance_button,
-            self.profiles_button,
-            self.focus_button,
-            self.copy_image_button,
-            self.bookmark_button,
+        self.presentation_button = QPushButton("Presentar")
+        self.presentation_button.setToolTip("Diapositivas a pantalla completa (F11).")
+        self.presentation_button.clicked.connect(self.open_presentation)
+        for index, button in enumerate(
+            (
+                self.appearance_button,
+                self.profiles_button,
+                self.presentation_button,
+                self.focus_button,
+                self.copy_image_button,
+                self.bookmark_button,
+            )
         ):
-            workspace_tools.addWidget(button)
-        workspace_tools.addStretch()
+            workspace_tools.addWidget(button, index // 3, index % 3)
         graph_column.addLayout(workspace_tools)
 
         display_row = QHBoxLayout()
@@ -365,8 +378,35 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self._action("Ampliar lienzo", self.toggle_focus_layout, ["Ctrl+Shift+F"])
         self._action("Paso anterior", lambda: self.navigate_step(-1), ["Alt+Left"])
         self._action("Paso siguiente", lambda: self.navigate_step(1), ["Alt+Right"])
+        self._action("Presentar diapositivas", self.open_presentation, ["F11"])
+        self._action("Perfiles de presentación", self.open_presentation_profiles, ["Ctrl+Alt+P"])
+        for index in range(4):
+            self._action(
+                f"Abrir {self.tabs.tabText(index)}",
+                lambda checked=False, i=index: (
+                    self.tabs.setCurrentIndex(i) if self.tabs.isTabEnabled(i) else None
+                ),
+                [f"Ctrl+{index + 1}"],
+            )
         self.graph_view.navigation_requested.connect(self.navigate_step)
         self.graph_view.playback_requested.connect(self.toggle_playback)
+
+    def open_presentation(self):
+        if self.busy:
+            return
+        if not self.states:
+            self.statusBar().showMessage(
+                "Inicia un recorrido para presentar sus diapositivas.", 5000
+            )
+            return
+        from graph_visualizer.ui.presentation_view import PresentationView
+
+        self.stop_playback()
+        try:
+            dialog = PresentationView(self)
+            dialog.showFullScreen()
+        except (ValueError, OSError) as error:
+            QMessageBox.warning(self, "No se pudo abrir la presentación", str(error))
 
     def _build_legend(self, controls: QVBoxLayout) -> None:
         self.legend_button = QToolButton()
@@ -985,7 +1025,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             self.visual_splitter.setSizes(
                 [self.visual_splitter.width() - results_width, results_width]
             )
-        self.graph_view.fit_graph()
+        self.refit_workspace()
         self.refresh_export_preview()
 
     def change_graph_type(self, directed):
@@ -1027,6 +1067,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             self._refresh_play_button()
 
     def refresh_navigation(self):
+        self.presentation_button.setEnabled(bool(self.states) and not self.busy)
         with QSignalBlocker(self.jump_step):
             self.jump_step.setRange(0, max(0, len(self.states) - 1))
         self.jump_phase.clear()
@@ -1219,6 +1260,9 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             f"{state.algorithm} · {state.phase} · "
             f"Iteración {state.iteration} · Paso {index} / {len(self.states) - 1}"
         )
+        from graph_visualizer.ui.accessibility import announce
+
+        announce(self.step_label, self.step_label.text() + ". " + state.explanation)
 
     def reset(self) -> None:
         if self.busy:
@@ -1309,6 +1353,10 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.persist_preferences()
         self.centralWidget().setEnabled(False)
         self.statusBar().showMessage("Generando páginas…")
+        self.announced_export_progress = -1
+        from graph_visualizer.ui.accessibility import announce
+
+        announce(self.statusBar(), "Generando diapositivas. Puedes cancelar la operación.")
         QTimer.singleShot(0, self.advance_export)
 
     def advance_export(self):
@@ -1317,6 +1365,14 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         try:
             completed, total = next(self.export_generator)
             self.statusBar().showMessage(f"Exportando {completed}/{total}…")
+            progress = 10 * completed // max(1, total)
+            if progress > self.announced_export_progress:
+                self.announced_export_progress = progress
+                from graph_visualizer.ui.accessibility import announce
+
+                announce(
+                    self.statusBar(), f"Exportando. {100 * completed // max(1, total)} por ciento."
+                )
             QTimer.singleShot(0, self.advance_export)
         except StopIteration as result:
             self.busy = False
@@ -1334,6 +1390,9 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             self.export_notice_path.setText(str(result.value))
             self.export_notice.show()
             self.statusBar().showMessage(f"Exportación completada · {result.value}")
+            from graph_visualizer.ui.accessibility import announce
+
+            announce(self.statusBar(), f"Exportación completada. {result.value}")
         except (OSError, ValueError) as error:
             self.busy = False
             self.export_generator = None

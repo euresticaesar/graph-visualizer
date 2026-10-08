@@ -1,5 +1,3 @@
-import math
-
 import pytest
 from PySide6.QtCore import QSize
 from PySide6.QtPdf import QPdfDocument
@@ -9,7 +7,6 @@ from graph_visualizer.core.bellman_ford import bellman_ford_steps
 from graph_visualizer.export.image_exporter import (
     export_frames,
     export_graph,
-    measure_state,
     render_state,
 )
 
@@ -42,15 +39,24 @@ def test_pdf_pages_and_preview(window, kind):
 
 
 def test_table_blocks_preserve_arcs(window):
+    from graph_visualizer.core.graph import ordered_arcs
+    from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
+
     states = bellman_ford_steps(window.graph, window.start)
     state = states[0]
-    layout = measure_state(window.graph_view, window.graph, state, window.start, window.target)
-    blocks = [(title, rows) for title, _, rows in layout.tables if title.startswith("Arcos")]
-    assert all(len(rows) <= 12 for _, rows in blocks)
-    from graph_visualizer.core.graph import ordered_arcs
-
-    assert sum(len(rows) for _, rows in blocks) == len(ordered_arcs(window.graph))
-    assert len(blocks) == math.ceil(len(ordered_arcs(window.graph)) / 12)
+    renderer = SlideRenderer(window.graph, window.graph_view.positions(), SlideOptions())
+    try:
+        plans = renderer.plan(state.algorithm)
+        assert len(plans) == 1
+        arcs = tuple(
+            entry
+            for block, *_ in plans[0].blocks
+            if block.kind == "arcs"
+            for entry in block.entries
+        )
+        assert arcs == ordered_arcs(window.graph)
+    finally:
+        renderer.close()
     image = render_state(
         window.graph,
         window.graph_view.positions(),

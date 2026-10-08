@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from graph_visualizer.ui.accessibility import MessageLabel
 from graph_visualizer.ui.node_combo_box import NodeComboBox
 from graph_visualizer.ui.section_card import SectionCard
 
@@ -33,6 +34,7 @@ class GraphEditor(QWidget):
         column.setSpacing(12)
         graph_card = SectionCard("Tipo de grafo")
         self.graph_type = QComboBox()
+        self.graph_type.setAccessibleName("Tipo de grafo")
         self.graph_type.addItems(["No dirigido", "Dirigido"])
         self.graph_type.setToolTip(
             "No dirigido → dirigido: dos arcos por conexión.\n"
@@ -53,6 +55,8 @@ class GraphEditor(QWidget):
         self.node_combo = NodeComboBox()
         self.node_id = QLineEdit()
         self.node_id.setPlaceholderText("Nombre, letra o número")
+        self.node_combo.setAccessibleName("Nodo seleccionado para editar")
+        self.node_id.setAccessibleName("ID del nodo nuevo o renombrado")
         form = QFormLayout()
         form.addRow("Seleccionado", self.node_combo)
         form.addRow("ID nuevo", self.node_id)
@@ -81,10 +85,14 @@ class GraphEditor(QWidget):
         self.source_combo, self.target_combo = NodeComboBox(), NodeComboBox()
         self.weight_input = QLineEdit("1")
         self.weight_input.setPlaceholderText("Ej. 4.5")
+        self.source_combo.setAccessibleName("Origen de la conexión")
+        self.target_combo.setAccessibleName("Destino de la conexión")
+        self.weight_input.setAccessibleName("Peso de la conexión seleccionada")
         edge_form = QFormLayout()
         edge_form.addRow("Desde", self.source_combo)
         edge_form.addRow("Hasta", self.target_combo)
         self.edge_combo = NodeComboBox()
+        self.edge_combo.setAccessibleName("ID de la conexión entre origen y destino")
         edge_form.addRow("Conexión", self.edge_combo)
         edge_form.addRow("Peso", self.weight_input)
         connections.content.addLayout(edge_form)
@@ -116,7 +124,8 @@ class GraphEditor(QWidget):
                 self.edge_combo.currentData(),
             )
         )
-        self.error_label = QLabel()
+        self.error_label = MessageLabel(urgent=True)
+        self.error_label.setAccessibleName("Error al editar el grafo")
         self.error_label.setObjectName("error")
         self.error_label.setWordWrap(True)
         column.addWidget(self.error_label)
@@ -176,7 +185,9 @@ class GraphEditor(QWidget):
         with QSignalBlocker(self.edge_combo):
             self.edge_combo.clear()
             for key in sorted(self.graph.get_edge_data(source, target, default={})):
-                self.edge_combo.addItem(f"Conexión {key}", key)
+                self.edge_combo.addItem(
+                    f"{source} {'→' if self.graph.is_directed() else '↔'} {target} · ID {key}", key
+                )
             index = self.edge_combo.findData(selected)
             self.edge_combo.setCurrentIndex(index if index >= 0 else 0)
         exists = self.edge_combo.count() > 0

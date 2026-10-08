@@ -16,6 +16,10 @@ DEFAULTS = {
     "edge_ids": False,
     "export_theme": "light",
     "export_layout": "balanced",
+    "export_composition": "auto",
+    "export_graph_fraction": 0.48,
+    "export_dim_unrelated": False,
+    "export_focus": False,
     "export_resolution": 1920,
     "export_font_scale": 1.0,
     "export_group": 4,
@@ -35,6 +39,7 @@ CHOICES = {
     "export_theme": {"light", "dark", "paper", "contrast", "print", "colorblind", "app"},
     "ui_layout": {"classic", "right", "bottom", "focus"},
     "export_layout": {"balanced", "graph", "tables"},
+    "export_composition": {"auto", "side", "top"},
     "export_resolution": {1920, 2560, 3840},
     "export_group": {2, 4},
     "export_format": {"png", "pdf", "svg"},
@@ -67,6 +72,9 @@ def validated_preferences(data):
                 result[key] = value
         elif key in {"graph_font_scale", "export_font_scale"}:
             if type(value) in (int, float) and 0.8 <= value <= 1.5:
+                result[key] = float(value)
+        elif key == "export_graph_fraction":
+            if type(value) in (int, float) and 0.2 <= value <= 0.65:
                 result[key] = float(value)
         elif key in {"window_size", "workspace_sizes", "results_sizes"}:
             if (

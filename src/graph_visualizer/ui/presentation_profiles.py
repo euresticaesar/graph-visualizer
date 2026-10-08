@@ -23,6 +23,7 @@ from graph_visualizer.io.presentation_profiles import (
     read_profile,
     write_profile,
 )
+from graph_visualizer.ui.accessibility import MessageLabel
 
 
 class PresentationProfilesDialog(QDialog):
@@ -65,7 +66,7 @@ class PresentationProfilesDialog(QDialog):
             button.clicked.connect(lambda checked=False, cb=callback: self.perform(cb))
             actions.addWidget(button, index // 2, index % 2)
         column.addLayout(actions)
-        self.message = QLabel()
+        self.message = MessageLabel()
         self.message.setWordWrap(True)
         self.message.setTextFormat(Qt.TextFormat.PlainText)
         self.message.setAccessibleName("Resultado de la operación del perfil")

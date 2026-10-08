@@ -1,7 +1,9 @@
 """Export customization, selection and a zoomable, paged preview."""
 
-from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtGui import QAction, QPixmap
+from dataclasses import replace
+
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
+from PySide6.QtGui import QAction, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -59,6 +62,9 @@ class ExportPreview(QDialog):
         )
         self.total_pages = (total + self.capacity - 1) // self.capacity
         self.images = []
+        self.fit_timer = QTimer(self)
+        self.fit_timer.setSingleShot(True)
+        self.fit_timer.timeout.connect(self.refresh_zoom)
         column = QVBoxLayout(self)
         hint = QLabel(
             "Revisa cualquier página y amplía al 100 % para comprobar textos y detalles. "
@@ -66,6 +72,20 @@ class ExportPreview(QDialog):
         )
         hint.setWordWrap(True)
         column.addWidget(hint)
+        self.diagnosis = QLabel()
+        self.diagnosis.setObjectName("hint")
+        self.diagnosis.setWordWrap(True)
+        self.diagnosis.setAccessibleName("Diagnóstico de legibilidad de la exportación")
+        column.addWidget(self.diagnosis)
+        fixes = QHBoxLayout()
+        self.use_4k = QPushButton("Usar 4K")
+        self.use_4k.clicked.connect(self.set_4k)
+        adjust = QPushButton("Ajustar composición")
+        adjust.clicked.connect(self.adjust_composition)
+        fixes.addWidget(self.use_4k)
+        fixes.addWidget(adjust)
+        fixes.addStretch()
+        column.addLayout(fixes)
         toolbar = QHBoxLayout()
         previous, next_page, last = (
             QPushButton("Anterior"),
@@ -89,16 +109,25 @@ class ExportPreview(QDialog):
             toolbar.addWidget(widget)
         column.addLayout(toolbar)
         scroll = self.scroll = QScrollArea()
+        scroll.setObjectName("previewScroll")
         scroll.setWidgetResizable(True)
+        # Reserve the scrollbar width so fitting cannot toggle it on and off.
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll.viewport().setBackgroundRole(QPalette.ColorRole.Window)
+        scroll.viewport().setAutoFillBackground(True)
+        scroll.viewport().installEventFilter(self)
         content = QWidget()
+        content.setObjectName("previewContent")
         samples = QVBoxLayout(content)
+        samples.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        samples.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.labels, self.captions = [], []
         for _ in range(2):
             caption, label = QLabel(), QLabel()
             caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             samples.addWidget(caption)
-            samples.addWidget(label)
+            samples.addWidget(label, 0, Qt.AlignmentFlag.AlignHCenter)
             self.labels.append(label)
             self.captions.append(caption)
         scroll.setWidget(content)
@@ -117,6 +146,7 @@ class ExportPreview(QDialog):
         self.page_input.valueChanged.connect(self.show_page)
         self.zoom.currentIndexChanged.connect(self.refresh_zoom)
         self.finished.connect(lambda _: self.renderer.close())
+        self.finished.connect(self.fit_timer.stop)
         try:
             self.show_page(1)
         except Exception:
@@ -125,12 +155,25 @@ class ExportPreview(QDialog):
 
     def show_page(self, value):
         self.images = []
+        measurements = {}
         total = len(self.source_indices) * self.parts
         for slot, page in enumerate(range(value - 1, min(value + 1, self.total_pages))):
             refs = []
             for ordinal in range(page * self.capacity, min((page + 1) * self.capacity, total)):
                 refs.append((self.source_indices[ordinal // self.parts], ordinal % self.parts))
             self.images.append(self.renderer.image(refs, self.states, self.start, self.target))
+            for index, _ in refs:
+                for category, size in self.renderer.legibility(
+                    self.states[index], self.start, self.target
+                ).items():
+                    measurements[category] = min(measurements.get(category, float("inf")), size)
+            self.labels[slot].setAccessibleName(f"Diapositiva de vista previa {page + 1}")
+            self.labels[slot].setAccessibleDescription(
+                "\n".join(
+                    self.renderer.explanation(self.states[index], self.start, self.target)
+                    for index, _ in refs
+                )
+            )
             self.captions[slot].setText(
                 f"{'Página' if self.is_pdf else 'Imagen'} {page + 1} de la muestra"
             )
@@ -138,7 +181,34 @@ class ExportPreview(QDialog):
                 f"Página {page + 1} de {self.total_pages} · Pasos "
                 + ", ".join(str(i) for i, _ in refs)
             )
+        self.measurements = measurements
+        small = [category for category, size in measurements.items() if size < 12]
+        self.diagnosis.setText(
+            "Tamaño mínimo del texto en esta muestra: "
+            + " · ".join(f"{category}: {size:.1f} px" for category, size in measurements.items())
+            + (
+                ". Texto pequeño en "
+                + ", ".join(small)
+                + ". Revisa al 100 %, usa 4K o ajusta la composición."
+                if small
+                else "."
+            )
+            + " Al proyectar, la legibilidad también depende del tamaño de la pantalla."
+        )
+        self.use_4k.setEnabled(self.renderer.options.resolution != 3840)
         self.refresh_zoom()
+
+    def set_4k(self):
+        self.renderer.options = replace(self.renderer.options, resolution=3840)
+        self.parent().export_resolution.setCurrentIndex(
+            self.parent().export_resolution.findData(3840)
+        )
+        self.show_page(self.page_input.value())
+
+    def adjust_composition(self):
+        self.parent().tabs.setCurrentIndex(3)
+        self.parent().export_advanced_button.setChecked(True)
+        self.reject()
 
     def refresh_zoom(self):
         for slot, label in enumerate(self.labels):
@@ -156,16 +226,27 @@ class ExportPreview(QDialog):
                 )
                 if self.zoom.currentIndex() == 0:
                     width = min(width, image.width())
-                label.setPixmap(
-                    QPixmap.fromImage(image).scaledToWidth(
-                        width, Qt.TransformationMode.SmoothTransformation
-                    )
+                pixmap = QPixmap.fromImage(image).scaledToWidth(
+                    width, Qt.TransformationMode.SmoothTransformation
                 )
+                label.setPixmap(pixmap)
+                # A resizable scroll area may otherwise compress the label vertically.
+                label.setFixedSize(pixmap.size())
+        self.scroll.widget().layout().activate()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "zoom") and self.zoom.currentIndex() == 0:
-            self.refresh_zoom()
+            self.fit_timer.start(0)
+
+    def eventFilter(self, watched, event):
+        if (
+            watched is self.scroll.viewport()
+            and event.type() == QEvent.Type.Resize
+            and self.zoom.currentIndex() == 0
+        ):
+            self.fit_timer.start(0)
+        return super().eventFilter(watched, event)
 
 
 class ExportControls:
@@ -200,6 +281,22 @@ class ExportControls:
             ("Tablas destacadas", "tables"),
         ):
             self.export_layout.addItem(name, key)
+        self.export_composition = QComboBox()
+        for name, key in (
+            ("Adaptativa", "auto"),
+            ("Grafo a la izquierda", "side"),
+            ("Grafo arriba", "top"),
+        ):
+            self.export_composition.addItem(name, key)
+        self.export_graph_fraction = QSpinBox()
+        self.export_graph_fraction.setRange(20, 65)
+        self.export_graph_fraction.setSingleStep(5)
+        self.export_graph_fraction.setSuffix(" %")
+        self.export_graph_fraction.setToolTip(
+            "Porcentaje de ancho (lateral) o alto (superior) reservado al grafo."
+        )
+        self.export_dim_unrelated = QCheckBox("Atenuar conexiones fuera de la ruta")
+        self.export_focus = QCheckBox("Ampliar comparación activa en la diapositiva")
         self.export_group = QComboBox()
         self.export_group.addItem("2 páginas", 2)
         self.export_group.addItem("4 páginas", 4)
@@ -221,7 +318,7 @@ class ExportControls:
         ):
             form.addRow(name, widget)
         options.content.addLayout(form)
-        advanced_button = QToolButton()
+        advanced_button = self.export_advanced_button = QToolButton()
         advanced_button.setText("Composición y tipografía")
         advanced_button.setCheckable(True)
         options.content.addWidget(advanced_button)
@@ -229,6 +326,8 @@ class ExportControls:
         advanced_form = QFormLayout(advanced)
         for name, widget in (
             ("Distribución", self.export_layout),
+            ("Composición", self.export_composition),
+            ("Espacio del grafo", self.export_graph_fraction),
             ("Conjuntas", self.export_group),
             ("Escala de texto", self.export_font_scale),
             ("Título", self.export_title),
@@ -236,6 +335,8 @@ class ExportControls:
             advanced_form.addRow(name, widget)
         advanced_form.addRow(self.export_legend)
         advanced_form.addRow(self.export_explanation)
+        advanced_form.addRow(self.export_dim_unrelated)
+        advanced_form.addRow(self.export_focus)
         advanced.hide()
         advanced_button.toggled.connect(advanced.setVisible)
         options.content.addWidget(advanced)
@@ -311,15 +412,23 @@ class ExportControls:
             self.export_theme,
             self.export_resolution,
             self.export_layout,
+            self.export_composition,
             self.export_group,
             self.export_selection,
         ):
             widget.currentIndexChanged.connect(self.refresh_export_preview)
-        for widget in (self.export_from, self.export_to, self.export_font_scale):
+        for widget in (
+            self.export_from,
+            self.export_to,
+            self.export_font_scale,
+            self.export_graph_fraction,
+        ):
             widget.valueChanged.connect(self.refresh_export_preview)
         self.export_title.editingFinished.connect(self.refresh_export_preview)
         self.export_legend.toggled.connect(self.refresh_export_preview)
         self.export_explanation.toggled.connect(self.refresh_export_preview)
+        self.export_dim_unrelated.toggled.connect(self.refresh_export_preview)
+        self.export_focus.toggled.connect(self.refresh_export_preview)
         return page
 
     def restore_export_preferences(self):
@@ -328,12 +437,16 @@ class ExportControls:
             ("export_theme", self.export_theme),
             ("export_resolution", self.export_resolution),
             ("export_layout", self.export_layout),
+            ("export_composition", self.export_composition),
             ("export_group", self.export_group),
         ):
             widget.setCurrentIndex(widget.findData(self.preferences[key]))
         self.export_style.setCurrentIndex(self.preferences["export_style"])
         self.export_detail.setCurrentIndex(self.preferences["export_detail"])
         self.export_font_scale.setValue(self.preferences["export_font_scale"])
+        self.export_graph_fraction.setValue(round(100 * self.preferences["export_graph_fraction"]))
+        self.export_dim_unrelated.setChecked(self.preferences["export_dim_unrelated"])
+        self.export_focus.setChecked(self.preferences["export_focus"])
         self.export_title.setText(self.preferences["export_title"])
         self.export_legend.setChecked(self.preferences["export_legend"])
         self.export_explanation.setChecked(self.preferences["export_explanation"])
@@ -345,6 +458,7 @@ class ExportControls:
             "export_theme",
             "export_resolution",
             "export_layout",
+            "export_composition",
             "export_group",
         ):
             self.preferences[key] = getattr(self, key).currentData()
@@ -352,6 +466,9 @@ class ExportControls:
             export_style=self.export_style.currentIndex(),
             export_detail=self.export_detail.currentIndex(),
             export_font_scale=self.export_font_scale.value(),
+            export_graph_fraction=self.export_graph_fraction.value() / 100,
+            export_dim_unrelated=self.export_dim_unrelated.isChecked(),
+            export_focus=self.export_focus.isChecked(),
             export_legend=self.export_legend.isChecked(),
             export_explanation=self.export_explanation.isChecked(),
             export_title=self.export_title.text(),
@@ -370,6 +487,10 @@ class ExportControls:
             font_scale=self.export_font_scale.value(),
             graph_font_scale=self.preferences["graph_font_scale"],
             layout=self.export_layout.currentData(),
+            composition=self.export_composition.currentData(),
+            graph_fraction=self.export_graph_fraction.value() / 100,
+            dim_unrelated=self.export_dim_unrelated.isChecked(),
+            show_focus=self.export_focus.isChecked(),
             group_size=self.export_group.currentData(),
             show_legend=self.export_legend.isChecked(),
             show_explanation=self.export_explanation.isChecked(),
@@ -438,6 +559,11 @@ class ExportControls:
             "La composición ajusta columnas y escala para incluir todos los datos."
         )
         self.export_layout.setEnabled(not simple)
+        self.export_composition.setEnabled(not simple)
+        self.export_graph_fraction.setEnabled(
+            not simple and self.export_composition.currentData() != "auto"
+        )
+        self.export_focus.setEnabled(not simple)
         self.export_legend.setEnabled(not simple)
         self.export_explanation.setEnabled(not simple)
         self.export_title.setEnabled(not simple)

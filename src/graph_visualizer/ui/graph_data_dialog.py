@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from graph_visualizer.core.graph import edges_with_keys
 from graph_visualizer.core.models import format_number
 from graph_visualizer.io.edge_labels import label_offset
+from graph_visualizer.ui.accessibility import MessageLabel
 
 
 def table(headers, rows, *, editable_columns=()):
@@ -144,7 +145,7 @@ class GraphDataDialog(QDialog):
             )
             reset_labels.clicked.connect(self.reset_labels)
             column.addWidget(reset_labels)
-        self.error = QLabel()
+        self.error = MessageLabel(urgent=True)
         self.error.setObjectName("error")
         self.error.setWordWrap(True)
         self.error.setTextFormat(Qt.TextFormat.PlainText)

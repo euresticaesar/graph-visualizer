@@ -36,6 +36,7 @@ class StatePanel(QWidget):
             ("Arcos ordenados", self.arcs),
         ):
             card = SectionCard(title)
+            table.setAccessibleName(title)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setAlternatingRowColors(True)
             table.verticalHeader().setDefaultSectionSize(26)
@@ -51,13 +52,21 @@ class StatePanel(QWidget):
             "Prioridades · g / h / f" if state.algorithm == "A*" else "Distancias · V / d / π"
         )
         if state.algorithm == "A*":
-            from graph_visualizer.export.image_exporter import table_data
-
             self.hint.setText(
                 "g: costo acumulado · h: estimación admisible · f = g + h. "
                 "Se expande el nodo con menor f."
             )
-            _, headers, rows = table_data(graph, state)[0]
+            headers = ["Nodo", "g", "h", "f = g + h", "Predecesor"]
+            rows = [
+                [
+                    node,
+                    format_number(state.distances[node]),
+                    format_number(state.heuristics[node]),
+                    format_number(state.distances[node] + state.heuristics[node]),
+                    state.predecessors[node] or "—",
+                ]
+                for node in sorted(graph)
+            ]
             self.table.setColumnCount(len(headers))
             self.table.setHorizontalHeaderLabels(headers)
             self.table.setRowCount(len(rows))
@@ -72,7 +81,7 @@ class StatePanel(QWidget):
         if state.algorithm != "Bellman-Ford":
             return
         self.hint.setText(
-            "Naranja: arco actual · Amarillo: mejora. "
+            "Arco actual y mejoras resaltados en negritas. "
             + (
                 "Cada conexión no dirigida aparece en ambos sentidos."
                 if not graph.is_directed()
@@ -90,6 +99,9 @@ class StatePanel(QWidget):
                 item = QTableWidgetItem(value)
                 item.setBackground(QColor(row_color(state, "distances", [node], self.palette)))
                 item.setForeground(QColor(self.palette.text))
+                font = item.font()
+                font.setBold(node in state.updated_nodes)
+                item.setFont(font)
                 self.table.setItem(row, col, item)
         arcs = ordered_arcs(graph)
         self.arcs.setColumnCount(4)
@@ -100,6 +112,9 @@ class StatePanel(QWidget):
                 item = QTableWidgetItem(value)
                 item.setBackground(QColor(row_color(state, "arcs", [u, v, str(key)], self.palette)))
                 item.setForeground(QColor(self.palette.text))
+                font = item.font()
+                font.setBold(state.current_edge == (u, v, key))
+                item.setFont(font)
                 self.arcs.setItem(row, col, item)
             if state.current_edge == (u, v, key):
                 self.arcs.scrollToItem(self.arcs.item(row, 0))
@@ -136,7 +151,9 @@ class MatrixPanel(QWidget):
         self.palette = palette_for()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        hint = QLabel("Fila / columna k · Mejora · Comparación · Rojo: sin mínimo finito")
+        hint = self.hint = QLabel(
+            "Fila / columna k · Mejora en negritas · Comparación · Sin mínimo finito"
+        )
         hint.setObjectName("hint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -151,10 +168,11 @@ class MatrixPanel(QWidget):
                     "nodo propio en diagonal; — sin recorrido."
                 )
             table = QTableWidget()
+            table.setAccessibleName(title)
             table.setMinimumHeight(100)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setItemDelegate(MatrixDelegate(table))
-            table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+            table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
             table.setHorizontalHeader(MatrixHeader(Qt.Orientation.Horizontal, table))
             table.setVerticalHeader(MatrixHeader(Qt.Orientation.Vertical, table))
             table.verticalHeader().setDefaultSectionSize(26)
@@ -193,6 +211,16 @@ class MatrixPanel(QWidget):
                     item.setForeground(QColor(self.palette.text))
                     item.setData(Qt.ItemDataRole.UserRole, green)
                     item.setData(Qt.ItemDataRole.UserRole + 1, active)
+                    font = item.font()
+                    font.setBold((i, j) in state.changed)
+                    item.setFont(font)
+                    item.setData(
+                        Qt.ItemDataRole.AccessibleDescriptionRole,
+                        f"{table.accessibleName()}, fila {state.nodes[i]}, columna {state.nodes[j]}"
+                        + (", comparación activa" if active else "")
+                        + (", mejora" if (i, j) in state.changed else "")
+                        + (", fila o columna k" if green else ""),
+                    )
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     table.setItem(i, j, item)
             table.resizeColumnsToContents()

@@ -1,7 +1,7 @@
 import pytest
 from conftest import wait_idle
 
-from graph_visualizer.export import image_exporter
+from graph_visualizer.ui.graph_view import GraphView
 from graph_visualizer.ui.node_item import NodeItem
 
 
@@ -71,7 +71,7 @@ def test_exports_follow_checkbox_without_modifying_graph(window, monkeypatch, ki
     window.state_labels_checkbox.setChecked(False)
     window.initialize()
     calls = []
-    render = image_exporter.GraphView.apply_state
+    render = GraphView.apply_state
 
     def inspect_scene(view, *args, **kwargs):
         result = render(view, *args, **kwargs)
@@ -90,7 +90,7 @@ def test_exports_follow_checkbox_without_modifying_graph(window, monkeypatch, ki
         calls.append(scene)
         return result
 
-    monkeypatch.setattr(image_exporter.GraphView, "apply_state", inspect_scene)
+    monkeypatch.setattr(GraphView, "apply_state", inspect_scene)
     window.preview_before_export.setChecked(False)
     window.export(kind)
     wait_idle(window)

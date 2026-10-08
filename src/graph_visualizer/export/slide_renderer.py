@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontInfo, QFontMetricsF, QImage, QPainter, QPen
 
 from graph_visualizer.core.dijkstra import route_description
 from graph_visualizer.core.graph import ordered_arcs
@@ -40,6 +40,10 @@ class SlideOptions:
     font_scale: float = 1.0
     graph_font_scale: float = 1.0
     layout: str = "balanced"
+    composition: str = "auto"
+    graph_fraction: float = 0.48
+    dim_unrelated: bool = False
+    show_focus: bool = False
     show_legend: bool = True
     show_explanation: bool = True
     title: str = ""
@@ -52,6 +56,11 @@ class SlideOptions:
             raise ValueError("La escala de texto debe estar entre 0.8 y 1.5.")
         if self.layout not in {"balanced", "graph", "tables"} or self.group_size not in {2, 4}:
             raise ValueError("Distribución de exportación no válida.")
+        if (
+            self.composition not in {"auto", "side", "top"}
+            or not 0.2 <= self.graph_fraction <= 0.65
+        ):
+            raise ValueError("La composición debe reservar entre 20 % y 65 % al grafo.")
 
 
 @dataclass
@@ -115,6 +124,7 @@ class PagePlan:
     graph: bool
     blocks: list
     graph_rect: QRectF | None = None
+    focus_rect: QRectF | None = None
 
 
 def wrapped_height(text, width, metrics, flags=WRAP):
@@ -176,15 +186,20 @@ def fitted_font(text, rect, preferred, flags=WRAP):
     return result
 
 
-def draw_fitted_text(painter, rect, text, *, centered=False, cell=False):
+def resolved_text_font(text, rect, preferred, *, centered=False, cell=False):
     flags = CELL_WRAP if cell else WRAP
-    metrics = QFontMetricsF(painter.font())
+    metrics = QFontMetricsF(preferred)
     if any(metrics.horizontalAdvance(word) > rect.width() for word in str(text).split()):
         flags = CELL_WRAP
     if centered:
         flags = Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWrapAnywhere
+    return fitted_font(str(text), rect, preferred, flags), flags
+
+
+def draw_fitted_text(painter, rect, text, *, centered=False, cell=False):
+    font, flags = resolved_text_font(text, rect, painter.font(), centered=centered, cell=cell)
     painter.save()
-    painter.setFont(fitted_font(str(text), rect, painter.font(), flags))
+    painter.setFont(font)
     painter.drawText(rect, flags, str(text))
     painter.restore()
 
@@ -357,6 +372,11 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
         return [PagePlan(True, [], QRectF(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT))]
     top, footer = content_top(options), footer_height(options, algorithm)
     body = QRectF(MARGIN, top, SLIDE_WIDTH - 2 * MARGIN, SLIDE_HEIGHT - top - footer)
+    focus = None
+    if options.show_focus:
+        height = min(150 * options.font_scale, body.height() * 0.22)
+        focus = QRectF(body.left(), body.top(), body.width(), height)
+        body.setTop(focus.bottom() + GAP)
     graph_bounds = graph_bounds or QRectF(0, 0, 1800, 1000)
     fractions = {
         "balanced": (0.46, 0.52, 0.40),
@@ -376,6 +396,22 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
             body.left(), plot.bottom() + GAP, body.width(), body.bottom() - plot.bottom() - GAP
         )
         layouts.append((plot, tables))
+    if options.composition == "side":
+        plot = QRectF(
+            body.left(), body.top(), body.width() * options.graph_fraction - GAP, body.height()
+        )
+        tables = QRectF(
+            plot.right() + GAP, body.top(), body.right() - plot.right() - GAP, body.height()
+        )
+        layouts = [(plot, tables)]
+    elif options.composition == "top":
+        plot = QRectF(
+            body.left(), body.top(), body.width(), body.height() * options.graph_fraction - GAP
+        )
+        tables = QRectF(
+            body.left(), plot.bottom() + GAP, body.width(), body.bottom() - plot.bottom() - GAP
+        )
+        layouts = [(plot, tables)]
     arc_count = len(ordered_arcs(graph)) if algorithm == "Bellman-Ford" else 0
     count = max(len(graph), arc_count)
     limits = {len(graph), count, 8, 12, 16, 20, 24, 30, 40, 48, 64, 96}
@@ -387,30 +423,49 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
     for limit in sorted(n for n in limits if 0 < n <= count):
         blocks = table_blocks(graph, algorithm, options, aliases, rows_per_block=limit)
         if not blocks:
-            return [PagePlan(True, [], body)]
+            return [PagePlan(True, [], body, focus)]
         for plot, tables in layouts:
             scale, placements = fit_blocks(blocks, tables)
             if not scale:
                 continue
+            graph_plot = QRectF(plot)
             graph_scale = min(
-                plot.width() / graph_bounds.width(), plot.height() / graph_bounds.height()
+                graph_plot.width() / graph_bounds.width(),
+                graph_plot.height() / graph_bounds.height(),
             )
             table_font = 18 * options.font_scale * scale
             graph_font = 15 * options.graph_font_scale * graph_scale
             score = table_font**0.45 * graph_font**0.55 - len(blocks) * 0.002
             if best is None or score > best[0]:
-                best = score, plot, placements, scale
+                best = score, graph_plot, placements, scale, focus
     if best is None:
         raise ValueError("No se pudo componer el contenido de la diapositiva.")
-    _, plot, placements, scale = best
+    _, plot, placements, scale, focus = best
     for block, _, _ in placements:
         block.scale = scale
-    return [PagePlan(True, placements, plot)]
+    return [PagePlan(True, placements, plot, focus)]
 
 
 def page_count(graph, algorithm, options):
     """Every state is one complete slide, independent of density and typography."""
     return 1
+
+
+def cell_is_bold(block, state, entry, col, values):
+    return bool(
+        entry is not None
+        and (
+            (
+                block.kind in {"matrix", "intermediates"}
+                and col
+                and (entry, block.columns[col - 1]) in state.changed
+            )
+            or (block.kind in {"distances", "astar"} and entry in state.updated_nodes)
+            or (
+                block.kind == "arcs" and tuple(values[:2]) + (int(values[2]),) == state.current_edge
+            )
+        )
+    )
 
 
 def draw_block(painter, block, x, y, state, palette, options, aliases=None):
@@ -455,6 +510,8 @@ def draw_block(painter, block, x, y, state, palette, options, aliases=None):
                 painter.setPen(QPen(QColor(palette.active), 2))
                 painter.drawRect(rect.adjusted(3, 3, -3, -3))
             painter.setPen(QColor(palette.text))
+            bold = cell_is_bold(block, state, entry, col, values)
+            painter.setFont(text_font(18 * options.font_scale, bold))
             if block.kind != "glossary":
                 value = aliases.get(str(value), value)
             draw_fitted_text(
@@ -466,12 +523,13 @@ def draw_block(painter, block, x, y, state, palette, options, aliases=None):
 
 def legend_text(algorithm):
     common = (
-        "Línea gruesa: ruta · Naranja: comparación · Borde azul: destino · "
-        "Rojo: sin mínimo finito. "
+        "Línea gruesa continua: ruta · Discontinua: comparación · Punteada: ciclo negativo · "
+        "Borde destacado: destino · Fondo de error: sin mínimo finito. "
     )
     if algorithm == "Floyd-Warshall":
         return (
-            common + "Matrices: verde = fila/columna k; amarillo = mejora; violeta = (i,j). "
+            common
+            + "Matrices: borde interior = fila/columna k; negritas = mejora; doble borde = (i,j). "
             "∞: sin ruta; −∞: ciclo negativo."
         )
     if algorithm == "A*":
@@ -495,6 +553,7 @@ class SlideRenderer:
         self.view.set_editable(False)
         self.view.set_state_labels_visible(options.show_state_labels)
         self.view.set_edge_ids_visible(options.show_edge_ids)
+        self.view.dim_unrelated = options.dim_unrelated
         self.aliases = {n: item.display_id for n, item in self.view.nodes.items()}
         self.plans = {}
         self.bounds = self.view.scene().itemsBoundingRect()
@@ -515,6 +574,125 @@ class SlideRenderer:
                 self.graph, algorithm, self.options, self.aliases, graph_bounds=self.bounds
             )
         return self.plans[algorithm]
+
+    def explanation(self, state, start, target):
+        detail = state.explanation + "\n" + route_description(state, start, target)
+        for node in sorted(self.aliases, key=len, reverse=True):
+            if self.aliases[node] != node:
+                detail = detail.replace(node, self.aliases[node])
+        return detail
+
+    def focus_text(self, state, start, target):
+        if state.comparison:
+            return state.comparison.explain()
+        cell = state.cell or min(state.changed, default=None)
+        if state.algorithm == "Floyd-Warshall" and cell:
+            i, j = cell
+            context = (
+                f"Intermedio k: {state.nodes[state.k]} · {len(state.changed)} mejoras\n"
+                if state.k is not None
+                else ""
+            )
+            return (
+                context
+                + f"D[{state.nodes[i]}, {state.nodes[j]}] = {format_number(state.matrix[i][j])} · "
+                f"Intermedio: {state.intermediates[i][j] or '—'}"
+            )
+        if state.algorithm == "Floyd-Warshall":
+            i, j = state.nodes.index(start), state.nodes.index(target)
+            return (
+                f"Distancia consultada D[{start}, {target}] = {format_number(state.matrix[i][j])}"
+            )
+        return route_description(state, start, target)
+
+    def legibility(self, state, start, target):
+        """Measure the same fitted fonts and transforms used by the actual render."""
+        options = self.options
+        plan = self.plan(state.algorithm)[0]
+        pixels = options.resolution / SLIDE_WIDTH
+        values = {}
+
+        def measure(category, text, rect, font, factor=1.0, *, centered=False, cell=False):
+            fitted, _ = resolved_text_font(text, rect, font, centered=centered, cell=cell)
+            size = QFontInfo(fitted).pixelSize() * factor * pixels
+            values[category] = min(values.get(category, math.inf), size)
+
+        graph_scale = min(
+            plan.graph_rect.width() / self.bounds.width(),
+            plan.graph_rect.height() / self.bounds.height(),
+        )
+        self.view.apply_state(state, start, target, state.phase == "Resultado")
+        for item in self.view.nodes.values():
+            fonts = [item.id_font]
+            if not options.simple:
+                fonts += [
+                    label.font()
+                    for label in (item.label, item.caption)
+                    if label.isVisible() and label.text()
+                ]
+            for font in fonts:
+                size = QFontInfo(font).pixelSize() * graph_scale * pixels
+                values["Grafo"] = min(values.get("Grafo", math.inf), size)
+        for item in self.view.edges.values():
+            size = QFontInfo(item.label.font()).pixelSize() * graph_scale * pixels
+            values["Grafo"] = min(values.get("Grafo", math.inf), size)
+        for block, *_ in plan.blocks:
+            measure(
+                "Tablas",
+                block.title,
+                QRectF(0, 0, block.natural_width, block.title_height - 4),
+                text_font(20 * options.font_scale, True),
+                block.scale,
+            )
+            for entry in (None, *block.entries):
+                row = block.headers if entry is None else block.values(state, entry)
+                for col, (value, width) in enumerate(zip(row, block.widths, strict=True)):
+                    if block.kind != "glossary":
+                        value = self.aliases.get(str(value), value)
+                    height = block.header_height if entry is None else block.row_height
+                    measure(
+                        "Tablas",
+                        str(value),
+                        QRectF(4, 2, width - 8, height - 4),
+                        text_font(
+                            18 * options.font_scale, cell_is_bold(block, state, entry, col, row)
+                        ),
+                        block.scale,
+                        centered=True,
+                        cell=True,
+                    )
+        if not options.simple:
+            title_y, heading_y, page_y, detail_y, detail_height = header_geometry(options)
+            if options.title:
+                measure(
+                    "Título",
+                    options.title,
+                    QRectF(32, title_y, 1856, heading_y - title_y - 4),
+                    text_font(28 * options.font_scale, True),
+                )
+            if options.show_explanation:
+                measure(
+                    "Explicación",
+                    self.explanation(state, start, target),
+                    QRectF(32, detail_y, 1856, detail_height),
+                    text_font(18 * options.font_scale),
+                )
+            if options.show_legend:
+                footer = footer_height(options, state.algorithm)
+                measure(
+                    "Leyenda",
+                    legend_text(state.algorithm),
+                    QRectF(32, 1080 - footer + 4, 1856, footer - 12),
+                    text_font(14 * options.font_scale),
+                )
+            if plan.focus_rect:
+                measure(
+                    "Comparación ampliada",
+                    self.focus_text(state, start, target),
+                    plan.focus_rect.adjusted(12, 38, -12, -10),
+                    text_font(22 * options.font_scale),
+                )
+        return values
 
     def paint(self, painter, state, start, target, index, count, part=0):
         options, palette = self.options, self.palette
@@ -547,10 +725,7 @@ class SlideRenderer:
                     f"Origen: {self.aliases[start]} · Destino: {self.aliases[target]}",
                 )
                 if options.show_explanation:
-                    detail = state.explanation + "\n" + route_description(state, start, target)
-                    for node in sorted(self.aliases, key=len, reverse=True):
-                        if self.aliases[node] != node:
-                            detail = detail.replace(node, self.aliases[node])
+                    detail = self.explanation(state, start, target)
                     draw_fitted_text(painter, QRectF(32, detail_y, 1856, detail_height), detail)
             self.view.apply_state(state, start, target, state.phase == "Resultado")
             if options.simple:
@@ -569,6 +744,18 @@ class SlideRenderer:
             )
             for block, x, y in plan.blocks:
                 draw_block(painter, block, x, y, state, palette, options, self.aliases)
+            if plan.focus_rect:
+                rect = plan.focus_rect
+                painter.fillRect(rect, QColor(palette.inset))
+                painter.setPen(QColor(palette.text))
+                painter.setFont(text_font(20 * options.font_scale, True))
+                draw_fitted_text(
+                    painter, rect.adjusted(12, 8, -12, -(rect.height() - 32)), "Foco del paso"
+                )
+                painter.setFont(text_font(22 * options.font_scale))
+                draw_fitted_text(
+                    painter, rect.adjusted(12, 38, -12, -10), self.focus_text(state, start, target)
+                )
             if options.show_legend and not options.simple:
                 painter.setFont(text_font(14 * options.font_scale))
                 painter.setPen(QColor(palette.muted))

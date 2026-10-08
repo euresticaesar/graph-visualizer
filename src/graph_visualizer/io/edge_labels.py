@@ -52,4 +52,7 @@ def apply_edge_labels(graph, records):
         seen.add(identity)
         updates.append((u, v, key, label_offset(record.get("offset"))))
     for u, v, key, offset in updates:
-        graph[u][v][key]["label_offset"] = offset
+        if offset == (0, 0):
+            graph[u][v][key].pop("label_offset", None)
+        else:
+            graph[u][v][key]["label_offset"] = offset

@@ -37,6 +37,16 @@ def main() -> int:
     parser.add_argument("--resolution", type=int, choices=(1920, 2560, 3840), default=1920)
     parser.add_argument("--layout", choices=("balanced", "graph", "tables"), default="balanced")
     parser.add_argument("--font-scale", type=float, default=1.0, help="Escala de texto: 0.8 a 1.5")
+    parser.add_argument("--composition", choices=("auto", "side", "top"), default="auto")
+    parser.add_argument(
+        "--graph-fraction", type=float, default=0.48, help="Espacio del grafo: 0.2 a 0.65"
+    )
+    parser.add_argument(
+        "--dim-unrelated", action="store_true", help="Atenúa conexiones fuera de la ruta"
+    )
+    parser.add_argument(
+        "--focus", action="store_true", help="Amplía la comparación activa dentro de la diapositiva"
+    )
     parser.add_argument("--detail", choices=("preset", "summary", "detailed"), default="preset")
     parser.add_argument("--simple", action="store_true", help="Exporta solo el grafo")
     args = parser.parse_args()

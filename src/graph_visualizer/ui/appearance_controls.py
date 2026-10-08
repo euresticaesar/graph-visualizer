@@ -70,7 +70,10 @@ def style_sheet(p, size):
             background: {p.surface};
             alternate-background-color: {p.inset};
             gridline-color: {p.border};
+            selection-background-color: {p.selection};
+            selection-color: {p.text};
         }}
+        QTableWidget:focus {{ border: 2px solid {p.accent}; }}
         QHeaderView {{ background: {p.header}; color: {p.text}; }}
         QHeaderView::section {{
             background: {p.header}; color: {p.text}; padding: 4px;
@@ -80,6 +83,7 @@ def style_sheet(p, size):
             background: {p.header}; border: 1px solid {p.border};
         }}
         QAbstractScrollArea::corner {{ background: {p.inset}; }}
+        QScrollArea#previewScroll, QWidget#previewContent {{ background: {p.canvas}; border: 0; }}
         QComboBox QAbstractItemView {{
             background: {p.surface};
             color: {p.text};
@@ -119,6 +123,54 @@ def style_sheet(p, size):
 
 
 class AppearanceControls:
+    def adapt_workspace_density(self):
+        compact = self.preferences["ui_layout"] == "bottom" and self.height() < 820
+        changed = compact != getattr(self, "compact_workspace", None)
+        self.compact_workspace = compact
+        self.graph_view.setMinimumHeight(150 if compact else 0)
+        margin = 8 if compact else 12
+        self.results_panel.layout().setContentsMargins(12, margin, 12, margin)
+        for panel in (self.state_panel, self.matrix_panel):
+            panel.hint.setVisible(not compact)
+            tables = panel.tables if hasattr(panel, "tables") else (panel.table, panel.arcs)
+            for table in tables:
+                table.setMinimumHeight(64 if compact else 100)
+                table.parentWidget().layout().activate()
+            panel.splitter.refresh()
+            panel.layout().activate()
+            panel.updateGeometry()
+        self.results_panel.layout().activate()
+        vertical = self.visual_splitter.orientation() == Qt.Orientation.Vertical
+        self.results_panel.setMinimumHeight(self.results_panel.minimumSizeHint().height())
+        self.visual_splitter.refresh()
+        self.visual_splitter.parentWidget().layout().activate()
+        self.workspace_splitter.refresh()
+        self.centralWidget().layout().activate()
+        graph_min = max(self.graph_view.minimumHeight(), self.graph_view.minimumSizeHint().height())
+        results_min = self.results_panel.minimumHeight()
+        required = (
+            graph_min + self.visual_splitter.handleWidth() + results_min
+            if vertical
+            else max(graph_min, results_min)
+        )
+        minimum = self.minimumSizeHint()
+        # Splitters do not propagate wrapped labels' height-for-width to the window.
+        height = (
+            self.height() - self.visual_splitter.height() + required
+            if self.results_panel.isVisible()
+            else 680
+        )
+        self.setMinimumSize(max(940, minimum.width()), max(680, height))
+        self.layout().activate()
+        if vertical and self.results_panel.isVisible():
+            available = self.visual_splitter.height() - self.visual_splitter.handleWidth()
+            sizes = self.visual_splitter.sizes()
+            if changed or sizes[0] < graph_min or sizes[1] < results_min:
+                graph_height = max(graph_min, min(sizes[0], available - results_min))
+                self.visual_splitter.setSizes(
+                    [graph_height, max(results_min, available - graph_height)]
+                )
+
     def open_presentation_profiles(self):
         if self.busy:
             return
@@ -187,6 +239,7 @@ class AppearanceControls:
         if previous != layout:
             self.visual_splitter.setSizes([600, 320])
         self.active_ui_layout = layout
+        self.adapt_workspace_density()
         self.focus_button.setText("Mostrar controles" if layout == "focus" else "Ampliar lienzo")
         self._refresh_legend_colors()
         if self.states:
