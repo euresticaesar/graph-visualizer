@@ -11,7 +11,7 @@ def main() -> int:
     from graph_visualizer.ui.main_window import MainWindow
 
     parser = argparse.ArgumentParser(
-        description="Visualizador de Dijkstra, Bellman-Ford y Floyd-Warshall"
+        description="Visualizador de Dijkstra, A*, Bellman-Ford y Floyd-Warshall"
     )
     parser.add_argument(
         "--data-dir",
@@ -20,7 +20,7 @@ def main() -> int:
         help="Directorio del trabajo y presets personales",
     )
     parser.add_argument(
-        "--output-dir", type=Path, default=OUTPUT_DIR, help="Directorio de exportaciones PNG"
+        "--output-dir", type=Path, default=OUTPUT_DIR, help="Directorio de exportaciones PNG y PDF"
     )
     args = parser.parse_args()
     QLocale.setDefault(QLocale("es_MX"))

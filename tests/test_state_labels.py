@@ -87,6 +87,7 @@ def test_exports_follow_checkbox_without_modifying_graph(window, monkeypatch, ki
         return result
 
     monkeypatch.setattr(image_exporter.GraphView, "apply_state", inspect_scene)
+    window.preview_before_export.setChecked(False)
     window.export(kind)
     wait_idle(window)
     assert len(calls) == (len(window.states) if kind in {"all", "combined"} else 1)

@@ -43,7 +43,30 @@ class StatePanel(QWidget):
         column.addWidget(self.splitter, 1)
 
     def show_state(self, graph, state):
-        self.setVisible(state.algorithm == "Bellman-Ford")
+        self.setVisible(state.algorithm in {"Bellman-Ford", "A*"})
+        self.splitter.widget(1).setVisible(state.algorithm != "A*")
+        self.splitter.widget(0).findChild(QLabel, "section").setText(
+            "Prioridades · g / h / f" if state.algorithm == "A*" else "Distancias · V / d / π"
+        )
+        if state.algorithm == "A*":
+            from graph_visualizer.export.image_exporter import table_data
+
+            self.hint.setText(
+                "g: costo acumulado · h: estimación admisible · f = g + h. "
+                "Se expande el nodo con menor f."
+            )
+            _, headers, rows = table_data(graph, state)[0]
+            self.table.setColumnCount(len(headers))
+            self.table.setHorizontalHeaderLabels(headers)
+            self.table.setRowCount(len(rows))
+            for row, values in enumerate(rows):
+                for col, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    if values[0] == state.current_node:
+                        item.setBackground(QColor("#fed7aa"))
+                    self.table.setItem(row, col, item)
+            self.table.resizeColumnsToContents()
+            return
         if state.algorithm != "Bellman-Ford":
             return
         self.hint.setText(

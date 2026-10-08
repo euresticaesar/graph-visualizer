@@ -146,7 +146,7 @@ class GraphView(QGraphicsView):
                 node == target,
                 state is not None and node in state.updated_nodes,
             )
-            if state and state.algorithm != "Dijkstra":
+            if state and state.algorithm not in {"Dijkstra", "A*"}:
                 item.state_caption = "sin mínimo finito" if node in state.affected else ""
                 if state.algorithm == "Floyd-Warshall":
                     from graph_visualizer.core.models import format_number

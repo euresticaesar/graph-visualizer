@@ -7,13 +7,15 @@ from graph_visualizer.core.graph import EdgeId, edge_id, ordered_arcs, validate_
 from graph_visualizer.core.models import AlgorithmState, Comparison, StateView, tree_edges
 
 
-def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False):
+def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False, _heuristics=None):
     validate_graph(graph)
     if start not in graph or target not in graph:
         raise ValueError("Selecciona origen y destino existentes.")
     arcs = ordered_arcs(graph)
     if any(w < 0 for _, _, _, w in arcs):
         raise ValueError("Dijkstra no admite pesos negativos; usa Bellman-Ford o Floyd-Warshall.")
+    heuristics = _heuristics or dict.fromkeys(graph, 0.0)
+    algorithm = "A*" if _heuristics is not None else "Dijkstra"
     distances = dict.fromkeys(sorted(graph), math.inf)
     predecessors = dict.fromkeys(graph)
     keys = dict.fromkeys(graph)
@@ -31,15 +33,18 @@ def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False):
                 frozenset(visited),
                 predecessor_edges=keys,
                 directed=graph.is_directed(),
+                algorithm=algorithm,
+                heuristics=heuristics if algorithm == "A*" else {},
                 **kw,
             )
         )
 
     emit(summary=True, explanation="Distancia inicial del origen: 0; las demás: ∞.")
-    queue = [(0.0, start)]
+    queue = [(heuristics[start], start)]
     iteration = 0
     while queue:
-        distance, current = heapq.heappop(queue)
+        _, current = heapq.heappop(queue)
+        distance = distances[current]
         if current in visited:
             continue
         iteration += 1
@@ -48,7 +53,12 @@ def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False):
             current,
             phase="Selección",
             iteration=iteration,
-            explanation=f"Se selecciona {current}, de menor distancia tentativa.",
+            explanation=(
+                f"Se selecciona {current}: g={distance:g}, h={heuristics[current]:g}, "
+                f"f=g+h={distance + heuristics[current]:g}."
+                if algorithm == "A*"
+                else f"Se selecciona {current}, de menor distancia tentativa."
+            ),
         )
         updated = set()
         if current != target:
@@ -63,7 +73,10 @@ def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False):
                 if improved:
                     distances[v], predecessors[v], keys[v] = candidate, u, key
                     updated.add(v)
-                    heapq.heappush(queue, (candidate, v))
+                    priority = candidate + heuristics[v]
+                    if not math.isfinite(priority):
+                        raise ValueError("La prioridad excede el rango numérico permitido.")
+                    heapq.heappush(queue, (priority, v))
                 comparison = Comparison(
                     u,
                     v,
@@ -127,7 +140,7 @@ def reconstruct_path(state: AlgorithmState, start: str, target: str) -> list[str
         return path if path[-1] == target else []
     if target in state.affected or not math.isfinite(state.distances.get(target, math.inf)):
         return []
-    if state.algorithm == "Dijkstra" and target not in state.visited:
+    if state.algorithm in {"Dijkstra", "A*"} and target not in state.visited:
         return []
     path, seen = [], set()
     current = target

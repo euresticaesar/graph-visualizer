@@ -79,6 +79,7 @@ class AlgorithmState:
     updated_nodes: frozenset[str] = frozenset()
     predecessor_edges: Mapping[str, int | None] = field(default_factory=dict)
     algorithm: str = "Dijkstra"
+    heuristics: Mapping[str, float] = field(default_factory=dict)
     phase: str = "Inicialización"
     iteration: int = 0
     current_edge: EdgeId | None = None
@@ -97,7 +98,7 @@ class AlgorithmState:
     k: int | None = None
 
     def __post_init__(self):
-        for name in ("distances", "predecessors", "predecessor_edges"):
+        for name in ("distances", "predecessors", "predecessor_edges", "heuristics"):
             value = getattr(self, name)
             if not isinstance(value, MappingProxyType):
                 object.__setattr__(self, name, MappingProxyType(dict(value)))

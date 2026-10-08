@@ -102,6 +102,7 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
         assert window.graph_view.nodes["3"].label.text() == "[∞, null]"
         assert window.graph_view.nodes["3"].is_target
         assert all(edge.pen().widthF() == 2 for edge in window.graph_view.edges.values())
+        window.preview_before_export.setChecked(False)
         window.export("final")
         wait_idle(window)
         assert len(list(window.output_dir.glob("*/resultado_final.png"))) == 1

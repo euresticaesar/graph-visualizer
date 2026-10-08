@@ -80,6 +80,7 @@ def parse_preset(data) -> Preset:
             raise ValueError("Ajustes no válidos.")
         if "algorithm" in settings and settings["algorithm"] not in (
             "Dijkstra",
+            "A*",
             "Bellman-Ford",
             "Floyd-Warshall",
         ):

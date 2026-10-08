@@ -6,8 +6,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen
+from PySide6.QtCore import QMarginsF, QRectF, QSizeF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetricsF,
+    QImage,
+    QPageLayout,
+    QPageSize,
+    QPainter,
+    QPdfWriter,
+    QPen,
+)
 
 from graph_visualizer.core.dijkstra import route_description
 from graph_visualizer.core.graph import ordered_arcs
@@ -50,6 +60,23 @@ def table_data(graph, state):
                 ],
             ),
         ]
+    if state.algorithm == "A*":
+        return [
+            (
+                "A* · prioridades",
+                ["Nodo", "g", "h", "f = g + h", "Predecesor"],
+                [
+                    [
+                        n,
+                        f(state.distances[n]),
+                        f(state.heuristics[n]),
+                        f(state.distances[n] + state.heuristics[n]),
+                        state.predecessors[n] or "—",
+                    ]
+                    for n in sorted(graph)
+                ],
+            )
+        ]
     if state.algorithm == "Bellman-Ford":
         return [
             (
@@ -83,7 +110,6 @@ def draw_table(painter, x, y, title, headers, rows, widths, state, graph):
     painter.setPen(QColor("#172b4d"))
     painter.drawText(QRectF(x, y, sum(widths), 32), title)
     painter.setFont(font(18))
-    arcs = ordered_arcs(graph) if state.algorithm == "Bellman-Ford" else ()
     for row_index, row in enumerate([headers, *rows]):
         offset = x
         for col, (value, width) in enumerate(zip(row, widths, strict=True)):
@@ -100,7 +126,11 @@ def draw_table(painter, x, y, title, headers, rows, widths, state, graph):
                 ):
                     background = "#bbf7d0"
             elif row_index:
-                if title.startswith("Arcos") and arcs[row_index - 1][:3] == state.current_edge:
+                if (
+                    title.startswith("Arcos")
+                    and tuple(rows[row_index - 1][:2]) + (int(rows[row_index - 1][2]),)
+                    == state.current_edge
+                ):
                     background = "#fed7aa"
                 elif title.startswith("V"):
                     node = rows[row_index - 1][0]
@@ -140,6 +170,8 @@ def legend(state, graph):
                 else "Arcos ordenados por origen, destino e ID."
             )
         )
+    if state.algorithm == "A*":
+        return "A*: g = costo acumulado; h = saltos mínimos × menor peso; f = g + h. " + common
     return common + " [distancia, predecesor] · Verde: fijado · Amarillo: tentativo."
 
 
@@ -167,12 +199,25 @@ def measure_state(view, graph, state, start, target, *, simple=False):
     graph_width = max(1200, math.ceil(bounds.width()))
     graph_height = max(650, math.ceil(bounds.height()))
     tables = [] if simple else table_data(graph, state)
+    if state.algorithm in {"Bellman-Ford", "A*"}:
+        block_rows = max(12, math.ceil(sum(len(rows) for _, _, rows in tables) / 6))
+        tables = [
+            (
+                title
+                if len(rows) <= block_rows
+                else f"{title} · {offset + 1}–{min(offset + block_rows, len(rows))}",
+                headers,
+                rows[offset : offset + block_rows],
+            )
+            for title, headers, rows in tables
+            for offset in range(0, len(rows), block_rows)
+        ]
     widths = [table_widths(headers, rows) for _, headers, rows in tables]
     for (title, _, _), columns in zip(tables, widths, strict=True):
         extra = math.ceil(QFontMetricsF(font(22, True)).horizontalAdvance(title)) + 8 - sum(columns)
         if extra > 0:
             columns[-1] += extra
-    width = max(graph_width + 64, sum(sum(w) for w in widths) + 96)
+    width = max(1920, graph_width + 64, sum(sum(w) + 32 for w in widths) + 32)
     detail = f"Origen: {start} · Destino: {target}. {state.explanation}\n" + route_description(
         state, start, target
     )
@@ -194,7 +239,13 @@ def measure_state(view, graph, state, start, target, *, simple=False):
     tables_height = max((len(rows) * 32 + 80 for _, _, rows in tables), default=0)
     height = graph_height if simple else top + graph_height + tables_height + legend_height + 40
     if simple:
-        width = graph_width
+        width = max(1920, graph_width)
+    height = max(height, math.ceil(width * 9 / 16))
+    width = max(width, math.ceil(height * 16 / 9))
+    if simple:
+        graph_height = height
+    elif not tables:
+        graph_height = height - top - legend_height - 40
     if width * height > 100_000_000:
         raise ValueError("La imagen individual supera 100 megapíxeles; reduce el layout del grafo.")
     return ImageLayout(
@@ -262,7 +313,7 @@ def render_state(
             graph_area = QRectF(0, 0, bounds.width() * scale, bounds.height() * scale)
             graph_area.moveCenter(area.center())
             view.scene().render(painter, graph_area, bounds, Qt.AspectRatioMode.KeepAspectRatio)
-            x = 32
+            x = max(32, (width - sum(sum(w) + 32 for w in widths) + 32) / 2)
             for (title, headers, rows), columns in zip(tables, widths, strict=True):
                 draw_table(
                     painter, x, top + graph_height, title, headers, rows, columns, state, graph
@@ -278,7 +329,7 @@ def render_state(
                 )
         finally:
             painter.end()
-        return image
+        return slide_image(image)
     finally:
         view.close()
         view.deleteLater()
@@ -312,8 +363,8 @@ def combined_image_count_job(
     try:
         for index, state in enumerate(states):
             view.apply_state(state, start, target, state.phase == "Resultado")
-            layout = measure_state(view, graph, state, start, target, simple=simple)
-            current_size = (layout.width, layout.height)
+            measure_state(view, graph, state, start, target, simple=simple)
+            current_size = (1920, 1080)
             if current_size != size or used == capacity:
                 pages += 1
                 size = current_size
@@ -327,6 +378,55 @@ def combined_image_count_job(
         view.deleteLater()
 
 
+def export_frames(graph, positions, states, start, target, index, kind, **options):
+    """Shared raster stream for preview and export; at most four states in memory."""
+    if not states or not 0 <= index < len(states):
+        raise ValueError("Inicia un algoritmo antes de exportar.")
+    if kind not in {"current", "all", "combined", "final"}:
+        raise ValueError(f"Tipo de exportación desconocido: {kind}.")
+    indices = (
+        list(range(len(states)))
+        if kind in {"all", "combined"}
+        else [len(states) - 1 if kind == "final" else index]
+    )
+    combined = None
+    for progress, state_index in enumerate(indices):
+        image = render_state(
+            graph,
+            positions,
+            states[state_index],
+            start,
+            target,
+            state_index,
+            len(states),
+            **options,
+        )
+        if kind == "combined":
+            if combined is None:
+                capacity = combined_capacity(1920, 1080, len(indices) - progress)
+                combined = QImage(
+                    1920 * min(2, capacity),
+                    1080 * math.ceil(capacity / 2),
+                    QImage.Format.Format_ARGB32_Premultiplied,
+                )
+                if combined.isNull():
+                    raise ValueError("Memoria insuficiente para la imagen conjunta.")
+                combined.fill(QColor("#f8fafc"))
+                used = 0
+            painter = QPainter(combined)
+            try:
+                painter.drawImage((used % 2) * 1920, (used // 2) * 1080, image)
+            finally:
+                painter.end()
+            used += 1
+            if used < capacity:
+                yield None, state_index, progress + 1, len(indices)
+                continue
+            image = slide_image(combined)
+            combined = None
+        yield image, state_index, progress + 1, len(indices)
+
+
 def export_job(
     graph,
     positions,
@@ -337,93 +437,64 @@ def export_job(
     kind,
     output_dir,
     *,
-    show_state_labels=True,
-    show_edge_ids=False,
-    simple=False,
+    output_format="png",
+    **options,
 ):
-    """Cooperative job: one render per yield; callers may use a Qt timer between frames."""
-    if not states or not 0 <= index < len(states):
-        raise ValueError("Inicia un algoritmo antes de exportar.")
-    if kind not in {"current", "all", "combined", "final"}:
-        raise ValueError(f"Tipo de exportación desconocido: {kind}.")
-    run_dir = output_dir / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
+    """Write one PDF or a PNG sequence, yielding after each rendered state."""
+    if output_format not in {"png", "pdf"}:
+        raise ValueError("Formato de exportación desconocido.")
+    frames = export_frames(graph, positions, states, start, target, index, kind, **options)
+    # Validate before creating any files.
+    first = next(frames)
+    from itertools import chain
+
+    run_dir = Path(output_dir) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     run_dir.mkdir(parents=True)
-    indices = (
-        list(range(len(states)))
-        if kind in {"all", "combined"}
-        else [len(states) - 1 if kind == "final" else index]
-    )
     destination = run_dir
-    combined = None
-    painter = None
+    pdf = painter = None
     page = 0
-    used = 0
-    capacity = 1
-    cell_width = cell_height = 0
-
-    def flush():
-        nonlocal painter, combined, page, used
-        if painter:
-            painter.end()
-            painter = None
-            page += 1
-            save_image(combined, run_dir / f"conjunta_{page:04d}.png")
-            combined = None
-            used = 0
-
+    completed = False
     try:
-        for progress, state_index in enumerate(indices):
-            image = render_state(
-                graph,
-                positions,
-                states[state_index],
-                start,
-                target,
-                state_index,
-                len(states),
-                simple=simple,
-                show_state_labels=show_state_labels,
-                show_edge_ids=show_edge_ids,
-            )
-            if kind == "combined":
-                # A page is a vertical sequence, with no reduction of individual frames.
-                if combined is not None and (
-                    image.width() != cell_width or image.height() != cell_height
-                ):
-                    flush()
-                if combined is None:
-                    cell_width, cell_height = image.width(), image.height()
-                    capacity = combined_capacity(cell_width, cell_height, len(indices) - progress)
-                    combined = QImage(
-                        cell_width,
-                        cell_height * capacity,
-                        QImage.Format.Format_ARGB32_Premultiplied,
+        if output_format == "pdf":
+            destination = run_dir / "diapositivas.pdf"
+            pdf = QPdfWriter(str(destination))
+            pdf.setResolution(96)
+            pdf.setPageSize(QPageSize(QSizeF(1440, 810), QPageSize.Unit.Point))
+            pdf.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Point)
+            pdf.setTitle(f"{states[0].algorithm} · {start} → {target}")
+            painter = QPainter(pdf)
+            if not painter.isActive():
+                raise OSError(f"No se pudo crear {destination}.")
+        for image, state_index, progress, total in chain([first], frames):
+            if image is not None:
+                if painter is not None:
+                    if page and not pdf.newPage():
+                        raise OSError("No se pudo crear la página PDF.")
+                    painter.drawImage(QRectF(0, 0, pdf.width(), pdf.height()), image)
+                else:
+                    name = (
+                        f"conjunta_{page + 1:04d}.png"
+                        if kind == "combined"
+                        else f"paso_{state_index:06d}.png"
+                        if kind == "all"
+                        else "resultado_final.png"
+                        if kind == "final"
+                        else f"paso_actual_{index:06d}.png"
                     )
-                    if combined.isNull():
-                        raise ValueError("Memoria insuficiente para la imagen conjunta.")
-                    combined.fill(QColor("#dce3ed"))
-                    painter = QPainter(combined)
-                painter.drawImage(0, used * cell_height, image)
-                used += 1
-                if used == capacity:
-                    flush()
-            else:
-                path = run_dir / (
-                    f"paso_{state_index:06d}.png"
-                    if kind == "all"
-                    else "resultado_final.png"
-                    if kind == "final"
-                    else f"paso_actual_{index:06d}.png"
-                )
-                save_image(image, path)
-                if kind != "all":
-                    destination = path
-            yield progress + 1, len(indices)
-        flush()
+                    path = run_dir / name
+                    save_image(image, path)
+                    if kind in {"current", "final"}:
+                        destination = path
+                page += 1
+            yield progress, total
+        completed = True
         return destination
     finally:
-        if painter:
+        frames.close()
+        if painter is not None:
             painter.end()
+        if output_format == "pdf" and not completed:
+            destination.unlink(missing_ok=True)
 
 
 def export_graph(*args, **kwargs) -> Path:
@@ -433,3 +504,20 @@ def export_graph(*args, **kwargs) -> Path:
             next(job)
         except StopIteration as result:
             return result.value
+
+
+def slide_image(image):
+    """Fit content without cropping into a full-bleed 1920×1080 slide."""
+    if image.width() == 1920 and image.height() == 1080:
+        return image
+    slide = QImage(1920, 1080, QImage.Format.Format_ARGB32_Premultiplied)
+    slide.fill(QColor("#f8fafc"))
+    scaled = image.scaled(
+        1920, 1080, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+    )
+    painter = QPainter(slide)
+    try:
+        painter.drawImage((1920 - scaled.width()) // 2, (1080 - scaled.height()) // 2, scaled)
+    finally:
+        painter.end()
+    return slide

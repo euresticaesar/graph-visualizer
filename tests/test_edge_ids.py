@@ -79,6 +79,7 @@ def test_png_exports_follow_connection_id_toggle(window, monkeypatch, kind, visi
         return result
 
     monkeypatch.setattr(image_exporter.GraphView, "apply_state", inspect)
+    window.preview_before_export.setChecked(False)
     window.export(kind)
     wait_idle(window)
     assert calls == [visible] * (len(window.states) if kind in {"all", "combined"} else 1)

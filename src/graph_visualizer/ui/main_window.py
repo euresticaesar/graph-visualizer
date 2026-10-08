@@ -305,7 +305,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             [
                 ("●", "#64748b", "Sin alcanzar"),
                 ("●", "#b48412", "Tentativo"),
-                ("●", "#329758", "Fijado (Dijkstra)"),
+                ("●", "#329758", "Fijado (Dijkstra / A*)"),
                 ("●", "#18794e", "Nodo actual / k"),
                 ("━", "#e69b00", "Comparación"),
                 ("━", "#087e8b", "Ruta final"),
@@ -334,7 +334,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         controls.setSpacing(12)
         setup = SectionCard("1. Configurar recorrido")
         self.algorithm_combo = QComboBox()
-        self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford", "Floyd-Warshall"])
+        self.algorithm_combo.addItems(["Dijkstra", "Bellman-Ford", "Floyd-Warshall", "A*"])
         self.algorithm_combo.currentTextChanged.connect(self.algorithm_changed)
         setup.content.addWidget(self.algorithm_combo)
         self.algorithm_hint = QLabel("Ruta mínima entre el origen y el destino.")
@@ -874,6 +874,12 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
                 self.states = bellman_ford_steps(
                     self.graph, self.start, early_stop=self.early_stop.isChecked()
                 )
+            elif self.algorithm_combo.currentText() == "A*":
+                from graph_visualizer.core.astar import astar_steps
+
+                self.states = astar_steps(
+                    self.graph, self.start, self.target, detailed=self.detail_checkbox.isChecked()
+                )
             else:
                 self.states = dijkstra_steps(
                     self.graph, self.start, self.target, detailed=self.detail_checkbox.isChecked()
@@ -897,7 +903,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.refresh_navigation()
         self.graph_view.set_editable(False)
         self.start_combo.setEnabled(self.algorithm_combo.currentText() == "Floyd-Warshall")
-        self.target_combo.setEnabled(self.algorithm_combo.currentText() != "Dijkstra")
+        self.target_combo.setEnabled(self.algorithm_combo.currentText() not in {"Dijkstra", "A*"})
         self._refresh_swap_button()
         self.run_button.setEnabled(False)
         self.reset_button.setEnabled(True)
@@ -910,7 +916,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.results_title.setText(
             "Matrices · Floyd-Warshall"
             if algorithm == "Floyd-Warshall"
-            else "Tablas · Bellman-Ford"
+            else "Tablas · " + algorithm
         )
         self.results_panel.setVisible(algorithm != "Dijkstra")
         self.view_hint.setText(
@@ -918,7 +924,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         )
         for action in self.export_actions:
             action.setEnabled(True)
-            action.setToolTip("Exportar PNG de " + algorithm)
+            action.setToolTip("Exportar estados de " + algorithm)
         self._sync_history()
         self.show_state(0)
         self.centralWidget().layout().activate()
@@ -1012,13 +1018,17 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.detail_checkbox.setText("Por comparación")
         self.algorithm_hint.setText(
             {
+                "A*": "Prioridad f = g + h. h = saltos mínimos al destino × menor peso. "
+                "Heurística admisible; con peso mínimo cero equivale a Dijkstra.",
                 "Dijkstra": "Ruta mínima entre el origen y el destino.",
                 "Bellman-Ford": "Desde el origen a todos los nodos. Admite pesos negativos.",
                 "Floyd-Warshall": "Todos los pares. Origen y destino solo consultan una ruta.",
             }[algorithm]
         )
         self.start_label.setText("Consultar desde" if algorithm == "Floyd-Warshall" else "Origen")
-        self.target_label.setText("Consultar hasta" if algorithm != "Dijkstra" else "Destino")
+        self.target_label.setText(
+            "Consultar hasta" if algorithm not in {"Dijkstra", "A*"} else "Destino"
+        )
         self.export_detail.setEnabled(algorithm != "Bellman-Ford")
         self.export_detail.setToolTip(
             "Bellman-Ford exporta un paso por arco."
@@ -1030,7 +1040,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             if algorithm == "Floyd-Warshall"
             else "Desmarcado: resumen por nodo"
         )
-        self.legend_grid.itemAtPosition(1, 0).widget().setVisible(algorithm == "Dijkstra")
+        self.legend_grid.itemAtPosition(1, 0).widget().setVisible(algorithm in {"Dijkstra", "A*"})
         self.notation.setText(
             "Distancias desde el origen consultado · k: intermedio"
             if algorithm == "Floyd-Warshall"
@@ -1123,11 +1133,14 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self._sync_history()
         self.refresh_export_preview()
 
-    def export(self, kind: ExportKind) -> None:
+    def export(self, kind: ExportKind, *, preview_confirmed=False) -> None:
         if not self.states or self.busy:
             return
         self.stop_playback()
         self.cancel_export_preview()
+        if self.preview_before_export.isChecked() and not preview_confirmed:
+            self.show_export_sample(kind)
+            return
         states = self._export_states()
         index = states.equivalent(self.states[self.state_index].step)
         self.export_generator = export_job(
@@ -1142,6 +1155,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             show_state_labels=self.graph_view.show_state_labels,
             show_edge_ids=self.graph_view.show_edge_ids,
             simple=self.export_style.currentIndex() == 1,
+            output_format=self.export_format.currentData(),
         )
         self.export_kind = kind
         self.busy = True
@@ -1158,7 +1172,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             self.busy = False
             self.centralWidget().setEnabled(True)
             self.last_export_path = result.value
-            if self.export_kind == "combined":
+            if self.export_kind == "combined" and self.last_export_path.is_dir():
                 self.export_preview_cache[self._export_preview_key(self._export_states())] = sum(
                     1 for _path in self.last_export_path.glob("*.png")
                 )

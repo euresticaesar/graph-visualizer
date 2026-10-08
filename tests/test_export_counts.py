@@ -55,7 +55,7 @@ def test_combined_count_matches_png_files_for_every_algorithm(qapp, tmp_path, al
     assert predicted == len(list(destination.glob("conjunta_*.png")))
 
 
-def test_preview_counts_size_changes_and_page_limits_without_rendering(qapp, monkeypatch):
+def test_preview_counts_fixed_slides_and_page_limits_without_rendering(qapp, monkeypatch):
     from dataclasses import replace
 
     graph = nx.MultiGraph()
@@ -69,7 +69,7 @@ def test_preview_counts_size_changes_and_page_limits_without_rendering(qapp, mon
         lambda *args, **kwargs: pytest.fail("Preview rendered PNG"),
     )
     predicted = list(image_exporter.combined_image_count_job(graph, positions, states, "A", "B"))
-    assert predicted[-1][1] == 3
+    assert predicted[-1][1] == 1
     monkeypatch.setattr(image_exporter, "MAX_COMBINED_PIXELS", 1)
     repeated = [initial] * 5
     predicted = list(image_exporter.combined_image_count_job(graph, positions, repeated, "A", "B"))
@@ -95,6 +95,7 @@ def test_ui_counts_follow_export_detail_and_match_generated_files(window):
         assert window.export_count_labels["current"].text() == "1 imagen"
         assert window.export_count_labels["final"].text() == "1 imagen"
         expected_images = int(window.export_count_labels["combined"].text().split()[0])
+        window.preview_before_export.setChecked(False)
         window.export("combined")
         wait_idle(window)
         assert expected_images == len(list(window.last_export_path.glob("*.png")))

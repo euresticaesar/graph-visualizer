@@ -23,6 +23,7 @@ def test_all_export_actions_preserve_live_view(window, parallel):
     labels = {node: item.label.text() for node, item in window.graph_view.nodes.items()}
     transform = window.graph_view.transform()
     saved_layout = (window.data_dir / "layout.json").read_bytes()
+    window.preview_before_export.setChecked(False)
     for action in window.export_actions:
         action.trigger()
         wait_idle(window)
@@ -74,6 +75,7 @@ def test_export_failure_is_reported(window, monkeypatch):
     window.output_dir.write_text("A file blocks this output directory")
     messages = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: messages.append(args[2]))
+    window.preview_before_export.setChecked(False)
     window.export("current")
     wait_idle(window)
     assert messages
@@ -117,6 +119,7 @@ def test_export_notice_persists_and_opens_actual_destination(window, monkeypatch
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url) or True)
     window.detail_checkbox.setChecked(False)
     window.initialize()
+    window.preview_before_export.setChecked(False)
     window.export_buttons[0].click()
     wait_idle(window)
     assert window.export_notice.isVisible()

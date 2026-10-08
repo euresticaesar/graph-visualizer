@@ -1,7 +1,7 @@
 [project]
 name = "graph-visualizer"
 version = "0.2.0"
-description = "Visualizador didáctico de Dijkstra, Bellman-Ford y Floyd-Warshall"
+description = "Visualizador didáctico de Dijkstra, A*, Bellman-Ford y Floyd-Warshall"
 readme = "README.md"
 authors = [
     { name = "César Euresti", email = "euresti.mgmt@gmail.com" }
