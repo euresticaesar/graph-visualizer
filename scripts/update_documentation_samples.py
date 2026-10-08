@@ -40,6 +40,29 @@ def main():
     preset = read_preset(ROOT / "src/graph_visualizer/examples/repositorio_30.json")
     assert len(preset.graph) == 30 and preset.graph.number_of_edges() == 63
     assert len(ordered_arcs(preset.graph)) == 126
+    comparison_preset = read_preset(ROOT / "src/graph_visualizer/examples/bellman_ford.json")
+    comparison_states = bellman_ford_steps(
+        comparison_preset.graph, comparison_preset.settings["start"]
+    )
+    comparison_index = next(
+        i
+        for i, state in enumerate(comparison_states)
+        if state.comparison and state.comparison.improved
+    )
+    renderer = SlideRenderer(
+        comparison_preset.graph, comparison_preset.positions, SlideOptions(show_focus=True)
+    )
+    try:
+        image = renderer.image(
+            [(comparison_index, 0)],
+            comparison_states,
+            comparison_preset.settings["start"],
+            comparison_preset.settings["target"],
+        )
+        if not image.save(str(IMAGES / "comparacion-didactica.png")):
+            raise OSError("No se pudo guardar la comparación didáctica.")
+    finally:
+        renderer.close()
     with tempfile.TemporaryDirectory(prefix="gv-doc-samples-") as temporary:
         scratch = Path(temporary)
         for name, states in (

@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar
+
+- Lista de pasos marcados en Recorrido, con contador, navegación por teclado y acceso al evento exacto cuando una marca está oculta en resumen.
+- Copiar imagen respeta el tema y acento actuales de la interfaz, conservando composición y resolución y el esquema independiente de los archivos exportados.
+- Las diapositivas omiten por defecto los IDs de conexiones en grafo, tabla de arcos y explicación; conservan todos los arcos y su resaltado exacto. La opción de IDs permite mostrarlos en grafo y tabla.
+- Explicaciones y foco con negritas y colores de contraste comprobado para contexto, cálculo, decisión y ruta; el tema Impresión conserva el énfasis en monocromo y el PDF sigue ofreciendo texto seleccionable.
+
 ## 0.3.0 — 2026-10-08
 
 - Una diapositiva completa 16:9 por estado en PNG, PDF y SVG, con matrices y arcos íntegros, exportación atómica y cancelable, manifiesto y grafo reproducible.

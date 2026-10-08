@@ -21,7 +21,9 @@ En el layout inferior, una ventana de menos de 820 px de alto activa el modo com
 | [Bellman-Ford](algoritmos/bellman-ford.md) | Desde un origen a todos los nodos | Se admiten en grafos dirigidos |
 | [Floyd-Warshall](algoritmos/floyd-warshall.md) | Todos los pares de nodos | Se admiten en grafos dirigidos |
 
-**Marcar paso** identifica el evento original para exportarlo después mediante **Pasos marcados**. **Copiar imagen** / `Ctrl+Shift+C` usa el paso exacto y las opciones de Exportar. Con foco en el lienzo, las flechas navegan y Espacio reproduce o pausa; `Alt+←/→` navega desde otros controles. **Cancelar operación** permanece disponible durante un cálculo en segundo plano o una exportación.
+**Marcar paso** guarda el evento original en **Explorar pasos → Marcas (n)**. La lista muestra las marcas en orden del recorrido; elige una para saltar a ese paso y detener la reproducción. La ayuda de cada entrada incluye evento, iteración y explicación. Si una comparación marcada está oculta por el modo resumen, aparece como **Evento … (detalle)** y elegirla activa **Por comparación** para mostrar el evento exacto, sin recalcular. El selector funciona con teclado y se actualiza también con las marcas del visor de presentación. **Quitar marca** retira el paso visible; **Volver a editar** o iniciar otro algoritmo limpia las marcas de esa ejecución. Para exportarlas, selecciona **Pasos marcados** en Exportar.
+
+**Copiar imagen** / `Ctrl+Shift+C` usa el paso exacto y el tema y acento actuales de la interfaz. Conserva las demás opciones de Exportar, como resolución, composición, tipografía, foco, explicación y leyenda. El esquema elegido para los archivos de exportación se mantiene independiente. Con foco en el lienzo, las flechas navegan y Espacio reproduce o pausa; `Alt+←/→` navega desde otros controles. **Cancelar operación** permanece disponible durante un cálculo en segundo plano o una exportación.
 
 ## Visor de presentación
 
