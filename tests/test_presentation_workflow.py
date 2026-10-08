@@ -5,6 +5,7 @@ from pathlib import Path
 import networkx as nx
 import pytest
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QLabel
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import QLabel
 from graph_visualizer.core.bellman_ford import bellman_ford_steps
 from graph_visualizer.core.dijkstra import dijkstra_steps
 from graph_visualizer.core.graph import graphs_equal
+from graph_visualizer.core.models import format_number
 from graph_visualizer.export.image_exporter import export_graph
 from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
 from graph_visualizer.io.edge_labels import apply_edge_labels, edge_label_records
@@ -27,6 +29,7 @@ from graph_visualizer.io.presets import Preset, read_preset, write_preset
 from graph_visualizer.ui.graph_data_dialog import GraphDataDialog
 from graph_visualizer.ui.presentation_profiles import PresentationProfilesDialog
 from graph_visualizer.ui.presentation_view import PresentationView
+from graph_visualizer.ui.themes import PALETTES, palette_for
 
 
 def test_profile_roundtrip_keeps_graph_and_selected_event(window, tmp_path):
@@ -248,7 +251,18 @@ def test_focus_pdf_retains_tables_and_full_comparison(window, tmp_path):
     assert doc.pageCount() == 1
     text = " ".join(doc.getAllText(0).text().split())
     assert "Foco del paso" in text and "Arcos ordenados" in text and "V / d / π" in text
-    assert " ".join(states[index].comparison.explain().split()) in text
+    comparison = states[index].comparison
+    f = format_number
+    for detail in (
+        f"Conexión {comparison.source} → {comparison.target} · Peso {f(comparison.weight)}",
+        f"Anterior: {f(comparison.before)}",
+        f"{f(comparison.left)} + {f(comparison.right)} = {f(comparison.candidate)}",
+        f"¿Mejora estricta? {'Sí' if comparison.improved else 'No'}",
+        f"Resultante: {f(comparison.after)}",
+        f"Predecesor: {comparison.predecessor_before or '—'} → "
+        f"{comparison.predecessor_after or '—'}",
+    ):
+        assert detail in text
     doc.close()
 
 
@@ -269,6 +283,105 @@ def test_route_emphasis_preserves_connections_and_uses_redundant_strokes(window)
         )
     finally:
         renderer.close()
+
+
+@pytest.mark.parametrize("algorithm", ["Dijkstra", "A*", "Bellman-Ford", "Floyd-Warshall"])
+def test_marked_steps_list_tracks_marks_and_navigates_with_keyboard(window, algorithm):
+    assert window.jump_bookmark.count() == 0 and not window.jump_bookmark.isEnabled()
+    assert window.jump_bookmark.placeholderText() == "Sin pasos marcados"
+    window.algorithm_combo.setCurrentText(algorithm)
+    window.initialize()
+    events = {index: window.states[index].step for index in (2, 6)}
+    for index in (6, 2):
+        window.show_state(index)
+        window.bookmark_button.click()
+    assert [window.jump_bookmark.itemData(i) for i in range(2)] == [events[2], events[6]]
+    assert window.bookmarks_label.text() == "Marcas (2)"
+    assert window.jump_bookmark.currentData() == events[2]
+    assert "Paso 2" in window.jump_bookmark.currentText()
+    assert window.states[2].explanation in window.jump_bookmark.toolTip()
+    window.show_state(3)
+    assert window.jump_bookmark.currentIndex() == -1
+    window.toggle_playback()
+    assert window.play_timer.isActive()
+    window.jump_bookmark.setFocus()
+    QTest.keyClick(window.jump_bookmark, Qt.Key.Key_Down)
+    assert window.state_index == 2 and not window.play_timer.isActive()
+    QTest.keyClick(window.jump_bookmark, Qt.Key.Key_Down)
+    assert window.state_index == 6
+    window.bookmark_button.click()
+    assert window.jump_bookmark.count() == 1
+    assert window.bookmarks_label.text() == "Marcas (1)"
+    assert not window.bookmark_button.isChecked()
+    assert window.jump_bookmark.currentIndex() == -1
+    window.busy = True
+    try:
+        window.jump_to_bookmark(0)
+        assert window.state_index == 6
+    finally:
+        window.busy = False
+    window.reset()
+    assert not window.bookmarks and window.jump_bookmark.count() == 0
+    assert not window.jump_bookmark.isEnabled()
+    assert window.bookmarks_label.text() == "Marcas (0)"
+
+
+@pytest.mark.parametrize("algorithm", ["Dijkstra", "A*", "Floyd-Warshall"])
+def test_marked_comparison_remains_available_in_summary_and_opens_exact_event(window, algorithm):
+    window.algorithm_combo.setCurrentText(algorithm)
+    window.detail_checkbox.setChecked(True)
+    window.initialize()
+    events = window.states.events
+    index = max(i for i, state in enumerate(window.states) if not state.summary)
+    assert index >= sum(state.summary for state in events)
+    window.show_state(index)
+    event = window.states[index].step
+    window.bookmark_button.click()
+    window.detail_checkbox.setChecked(False)
+    assert window.states[window.state_index].step != event
+    assert window.jump_bookmark.count() == 1
+    assert window.jump_bookmark.itemData(0) == event
+    assert "(detalle)" in window.jump_bookmark.itemText(0)
+    window.jump_bookmark.setFocus()
+    QTest.keyClick(window.jump_bookmark, Qt.Key.Key_Down)
+    assert window.detail_checkbox.isChecked()
+    assert window.states.events is events
+    assert window.states[window.state_index].step == event
+    assert window.jump_bookmark.currentData() == event
+    assert window.bookmark_button.isChecked()
+
+
+@pytest.mark.parametrize("theme", PALETTES)
+def test_clipboard_uses_interface_theme_and_accent_without_changing_export_theme(
+    window, qapp, theme
+):
+    window.preferences.update(theme=theme, accent="#a23b75")
+    window.apply_appearance()
+    window.export_theme.setCurrentIndex(
+        window.export_theme.findData("print" if theme != "print" else "dark")
+    )
+    window.export_resolution.setCurrentIndex(window.export_resolution.findData(2560))
+    window.initialize()
+    window.show_state(len(window.states) - 1)
+    options = window.export_options()
+    window.graph_view.auto_fit = False
+    window.graph_view.scale(1.2, 1.2)
+    before = (window.state_index, window.graph_view.transform(), window.graph_view.positions())
+    window.copy_image_button.click()
+    image = qapp.clipboard().image()
+    assert not image.isNull() and image.size().toTuple() == (2560, 1440)
+    palette = palette_for(theme, window.preferences["accent"])
+    assert image.pixelColor(0, 0).name() == palette.canvas
+    # The highlighted route must use the user's accent in the actual clipboard raster.
+    pixels = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    assert bytes(QColor(palette.accent).getRgb()) in pixels.constBits().tobytes()
+    assert window.export_options() == options
+    assert (
+        window.state_index,
+        window.graph_view.transform(),
+        window.graph_view.positions(),
+    ) == before
+    assert not window.output_dir.exists()
 
 
 def test_viewer_keyboard_navigation_marks_and_exit_preserve_workspace(window, qapp):
@@ -295,6 +408,8 @@ def test_viewer_keyboard_navigation_marks_and_exit_preserve_workspace(window, qa
     assert viewer.index in viewer.phase_indices
     QTest.keyClick(viewer, Qt.Key.Key_Escape)
     assert viewer.closed and not viewer.timer.isActive()
+    assert window.jump_bookmark.count() == 1 and window.jump_bookmark.isEnabled()
+    assert window.jump_bookmark.itemData(0) == viewer.states[3].step
     assert (
         window.state_index,
         window.graph_view.transform(),

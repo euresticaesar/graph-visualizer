@@ -243,11 +243,13 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.focus_button.clicked.connect(self.toggle_focus_layout)
         self.copy_image_button = QPushButton("Copiar imagen")
         self.copy_image_button.setToolTip(
-            "Copia la diapositiva completa del paso visible con las opciones de Exportar."
+            "Copia el paso visible con el tema y acento de la interfaz. "
+            "La composición y resolución se eligen en Exportar."
         )
         self.copy_image_button.clicked.connect(self.copy_current_image)
         self.bookmark_button = QPushButton("Marcar paso")
         self.bookmark_button.setCheckable(True)
+        self.bookmark_button.setToolTip("Guarda este paso en Recorrido → Marcas.")
         self.bookmark_button.clicked.connect(self.toggle_bookmark)
         self.presentation_button = QPushButton("Presentar")
         self.presentation_button.setToolTip("Diapositivas a pantalla completa (F11).")
@@ -534,6 +536,22 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             lambda index: self.show_state(self.jump_phase.itemData(index))
         )
         jumps.addRow("Fase", self.jump_phase)
+        self.jump_bookmark = QComboBox()
+        self.jump_bookmark.setObjectName("jumpBookmark")
+        self.jump_bookmark.setAccessibleName("Saltar a un paso marcado")
+        self.jump_bookmark.setAccessibleDescription(
+            "Lista de pasos marcados. Elegir una marca muestra su evento exacto; "
+            "si está oculto en resumen, activa el detalle."
+        )
+        self.jump_bookmark.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.jump_bookmark.setMinimumContentsLength(12)
+        self.jump_bookmark.setMaxVisibleItems(12)
+        self.jump_bookmark.activated.connect(self.jump_to_bookmark)
+        self.bookmarks_label = QLabel("Marcas (0)")
+        self.bookmarks_label.setBuddy(self.jump_bookmark)
+        jumps.addRow(self.bookmarks_label, self.jump_bookmark)
         navigation.content.addLayout(jumps)
         controls.addWidget(navigation)
 
@@ -1085,6 +1103,59 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             self.play_button,
         ):
             control.setEnabled(bool(self.states))
+        self.refresh_bookmarks()
+
+    def refresh_bookmarks(self):
+        visible = {state.step: i for i, state in enumerate(self.states)}
+        marked = (
+            [state for state in self.states.events if state.step in self.bookmarks]
+            if self.states
+            else []
+        )
+        with QSignalBlocker(self.jump_bookmark):
+            self.jump_bookmark.clear()
+            self.jump_bookmark.setPlaceholderText(
+                "Elige un paso marcado" if marked else "Sin pasos marcados"
+            )
+            for state in marked:
+                position = visible.get(state.step)
+                label = (
+                    f"Paso {position}" if position is not None else f"Evento {state.step} (detalle)"
+                )
+                self.jump_bookmark.addItem(f"{label} · {state.phase}", state.step)
+                self.jump_bookmark.setItemData(
+                    self.jump_bookmark.count() - 1,
+                    f"Evento {state.step} · Iteración {state.iteration}\n{state.explanation}",
+                    Qt.ItemDataRole.ToolTipRole,
+                )
+        self.bookmarks_label.setText(f"Marcas ({len(marked)})")
+        self.jump_bookmark.setEnabled(bool(marked) and not self.busy)
+        self.sync_bookmark_selection()
+
+    def sync_bookmark_selection(self):
+        event = self.states[self.state_index].step if self.states else None
+        marked = event in self.bookmarks
+        self.bookmark_button.setChecked(marked)
+        self.bookmark_button.setText("Quitar marca" if marked else "Marcar paso")
+        with QSignalBlocker(self.jump_bookmark):
+            self.jump_bookmark.setCurrentIndex(self.jump_bookmark.findData(event) if marked else -1)
+        self.jump_bookmark.setToolTip(
+            self.jump_bookmark.currentData(Qt.ItemDataRole.ToolTipRole)
+            or "Marca un paso con Marcar paso y vuelve a él desde esta lista."
+        )
+
+    def jump_to_bookmark(self, index):
+        if not self.states or self.busy:
+            return
+        event = self.jump_bookmark.itemData(index)
+        if event is None or event not in self.bookmarks:
+            return
+        self.stop_playback()
+        position = self.states.equivalent(event)
+        if self.states[position].step != event:
+            self.detail_checkbox.setChecked(True)
+            position = self.states.equivalent(event)
+        self.show_state(position)
 
     def closeEvent(self, event):
         self.stop_playback()
@@ -1138,6 +1209,10 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         from graph_visualizer.export.image_exporter import render_state
 
         try:
+            options = self.export_options() | {
+                "theme": self.preferences["theme"],
+                "accent": self.preferences["accent"],
+            }
             image = render_state(
                 self.graph,
                 self.graph_view.positions(),
@@ -1146,7 +1221,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
                 self.target,
                 self.state_index,
                 len(self.states),
-                **self.export_options(),
+                **options,
             )
             QApplication.clipboard().setImage(image)
             self.statusBar().showMessage("Imagen del paso visible copiada al portapapeles.", 5000)
@@ -1169,8 +1244,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             self.bookmarks.remove(step)
         else:
             self.bookmarks.add(step)
-        self.bookmark_button.setText("Quitar marca" if step in self.bookmarks else "Marcar paso")
-        self.bookmark_button.setChecked(step in self.bookmarks)
+        self.refresh_bookmarks()
         self.refresh_export_preview()
 
     def algorithm_changed(self):
@@ -1222,17 +1296,16 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
 
             step = self.states[self.state_index].step
             self.states = StateView(self.states.events, self.detail_checkbox.isChecked())
+            self.state_index = self.states.equivalent(step)
             self.refresh_navigation()
-            self.show_state(self.states.equivalent(step))
+            self.show_state(self.state_index)
         self.refresh_export_preview()
 
     def show_state(self, index: int) -> None:
         if not self.states or not 0 <= index < len(self.states):
             return
         self.state_index = index
-        marked = self.states[index].step in self.bookmarks
-        self.bookmark_button.setChecked(marked)
-        self.bookmark_button.setText("Quitar marca" if marked else "Marcar paso")
+        self.sync_bookmark_selection()
         phase_index = max(
             (i for i in range(self.jump_phase.count()) if self.jump_phase.itemData(i) <= index),
             default=0,

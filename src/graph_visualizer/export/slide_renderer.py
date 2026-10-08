@@ -13,6 +13,14 @@ from PySide6.QtGui import QColor, QFont, QFontInfo, QFontMetricsF, QImage, QPain
 from graph_visualizer.core.dijkstra import route_description
 from graph_visualizer.core.graph import ordered_arcs
 from graph_visualizer.core.models import format_number
+from graph_visualizer.export.slide_explanation import (
+    TextRun,
+    alias_runs,
+    comparison_runs,
+    draw_document,
+    explanation_runs,
+    fitted_document,
+)
 from graph_visualizer.ui.graph_view import GraphView
 from graph_visualizer.ui.themes import matrix_colors, palette_for, row_color
 
@@ -104,7 +112,7 @@ class TableBlock:
             ]
         if self.kind == "arcs":
             u, v, key, weight = entry
-            return [u, v, str(key), f(weight)]
+            return [u, v] + ([str(key)] if "ID" in self.headers else []) + [f(weight)]
         if self.kind == "glossary":
             return list(entry)
         node = entry
@@ -308,14 +316,14 @@ def table_blocks(graph, algorithm, options, aliases=None, *, rows_per_block=None
             add(
                 "arcs",
                 "Arcos ordenados",
-                ["De", "A", "ID", "Peso"],
+                ["De", "A"] + (["ID"] if options.show_edge_ids else []) + ["Peso"],
                 arcs,
                 [
                     max(id_width, width(["De"])),
                     max(id_width, width(["A"])),
-                    width(["ID", *(k for _, _, k, _ in arcs)]),
-                    width(["Peso", *(format_number(w) for *_, w in arcs)]),
-                ],
+                ]
+                + ([width(["ID", *(k for _, _, k, _ in arcs)])] if options.show_edge_ids else [])
+                + [width(["Peso", *(format_number(w) for *_, w in arcs)])],
             )
     entries = tuple((alias, node) for node, alias in aliases.items() if alias != node)
     if entries:
@@ -461,9 +469,7 @@ def cell_is_bold(block, state, entry, col, values):
                 and (entry, block.columns[col - 1]) in state.changed
             )
             or (block.kind in {"distances", "astar"} and entry in state.updated_nodes)
-            or (
-                block.kind == "arcs" and tuple(values[:2]) + (int(values[2]),) == state.current_edge
-            )
+            or (block.kind == "arcs" and entry[:3] == state.current_edge)
         )
     )
 
@@ -499,7 +505,8 @@ def draw_block(painter, block, x, y, state, palette, options, aliases=None):
                 ):
                     color = palette.k_fill
             elif row and block.kind != "glossary":
-                color = row_color(state, block.kind, values, palette)
+                identity = list(entry[:3]) if block.kind == "arcs" else values
+                color = row_color(state, block.kind, identity, palette)
             painter.fillRect(rect, QColor(color))
             painter.setPen(QPen(QColor(palette.border), 1))
             painter.drawRect(rect)
@@ -576,15 +583,30 @@ class SlideRenderer:
         return self.plans[algorithm]
 
     def explanation(self, state, start, target):
-        detail = state.explanation + "\n" + route_description(state, start, target)
-        for node in sorted(self.aliases, key=len, reverse=True):
-            if self.aliases[node] != node:
-                detail = detail.replace(node, self.aliases[node])
-        return detail
+        return "".join(run.text for run in explanation_runs(state, start, target, self.aliases))
+
+    def explanation_document(self, state, start, target, rect, *, focus=False):
+        if focus:
+            runs = (
+                comparison_runs(state)
+                if state.comparison
+                else [TextRun(self.focus_text(state, start, target), True, "active")]
+            )
+            runs = alias_runs(runs, self.aliases)
+        else:
+            runs = explanation_runs(state, start, target, self.aliases)
+        return fitted_document(
+            runs,
+            rect,
+            text_font((22 if focus else 18) * self.options.font_scale),
+            self.palette,
+            self.palette.inset if focus else self.palette.canvas,
+            monochrome=self.options.theme == "print",
+        )
 
     def focus_text(self, state, start, target):
         if state.comparison:
-            return state.comparison.explain()
+            return "".join(run.text for run in alias_runs(comparison_runs(state), self.aliases))
         cell = state.cell or min(state.changed, default=None)
         if state.algorithm == "Floyd-Warshall" and cell:
             i, j = cell
@@ -671,12 +693,10 @@ class SlideRenderer:
                     text_font(28 * options.font_scale, True),
                 )
             if options.show_explanation:
-                measure(
-                    "Explicación",
-                    self.explanation(state, start, target),
-                    QRectF(32, detail_y, 1856, detail_height),
-                    text_font(18 * options.font_scale),
+                document = self.explanation_document(
+                    state, start, target, QRectF(32, detail_y, 1856, detail_height)
                 )
+                values["Explicación"] = document.defaultFont().pixelSize() * pixels
             if options.show_legend:
                 footer = footer_height(options, state.algorithm)
                 measure(
@@ -686,12 +706,14 @@ class SlideRenderer:
                     text_font(14 * options.font_scale),
                 )
             if plan.focus_rect:
-                measure(
-                    "Comparación ampliada",
-                    self.focus_text(state, start, target),
+                document = self.explanation_document(
+                    state,
+                    start,
+                    target,
                     plan.focus_rect.adjusted(12, 38, -12, -10),
-                    text_font(22 * options.font_scale),
+                    focus=True,
                 )
+                values["Comparación ampliada"] = document.defaultFont().pixelSize() * pixels
         return values
 
     def paint(self, painter, state, start, target, index, count, part=0):
@@ -725,8 +747,10 @@ class SlideRenderer:
                     f"Origen: {self.aliases[start]} · Destino: {self.aliases[target]}",
                 )
                 if options.show_explanation:
-                    detail = self.explanation(state, start, target)
-                    draw_fitted_text(painter, QRectF(32, detail_y, 1856, detail_height), detail)
+                    rect = QRectF(32, detail_y, 1856, detail_height)
+                    draw_document(
+                        painter, rect, self.explanation_document(state, start, target, rect)
+                    )
             self.view.apply_state(state, start, target, state.phase == "Resultado")
             if options.simple:
                 for item in self.view.nodes.values():
@@ -752,9 +776,11 @@ class SlideRenderer:
                 draw_fitted_text(
                     painter, rect.adjusted(12, 8, -12, -(rect.height() - 32)), "Foco del paso"
                 )
-                painter.setFont(text_font(22 * options.font_scale))
-                draw_fitted_text(
-                    painter, rect.adjusted(12, 38, -12, -10), self.focus_text(state, start, target)
+                text_rect = rect.adjusted(12, 38, -12, -10)
+                draw_document(
+                    painter,
+                    text_rect,
+                    self.explanation_document(state, start, target, text_rect, focus=True),
                 )
             if options.show_legend and not options.simple:
                 painter.setFont(text_font(14 * options.font_scale))

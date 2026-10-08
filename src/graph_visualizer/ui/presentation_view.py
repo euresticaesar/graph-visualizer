@@ -227,8 +227,5 @@ class PresentationView(QDialog):
         self.closed = True
         self.stop_playback()
         self.renderer.close()
-        if self.owner.states:
-            marked = self.owner.states[self.owner.state_index].step in self.bookmarks
-            self.owner.bookmark_button.setChecked(marked)
-            self.owner.bookmark_button.setText("Quitar marca" if marked else "Marcar paso")
+        self.owner.refresh_bookmarks()
         self.owner.refresh_export_preview()
