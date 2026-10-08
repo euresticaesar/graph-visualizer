@@ -33,7 +33,9 @@ from graph_visualizer.core.models import DijkstraState
 from graph_visualizer.export.image_exporter import ExportKind, export_job
 from graph_visualizer.io.graph_io import load_graph, save_graph_data
 from graph_visualizer.io.layout_io import PositionMap, load_layout, save_layout
+from graph_visualizer.io.preferences import load_preferences
 from graph_visualizer.paths import DATA_DIR, OUTPUT_DIR
+from graph_visualizer.ui.appearance_controls import AppearanceControls
 from graph_visualizer.ui.export_controls import ExportControls
 from graph_visualizer.ui.graph_editor import GraphEditor
 from graph_visualizer.ui.graph_view import GraphView
@@ -58,16 +60,35 @@ class EditSnapshot:
     description: str
     preset_path: Path | None = None
     preset_baseline: dict | None = None
+    algorithm: str = "Dijkstra"
+    detail: bool = True
+    early_stop: bool = False
 
 
-class MainWindow(PresetControls, ExportControls, QMainWindow):
+class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow):
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "graph_view"):
+            QTimer.singleShot(0, self.refit_workspace)
+
+    def refit_workspace(self):
+        if self.graph_view.auto_fit and not self.busy:
+            self.graph_view.fit_graph()
+
     def __init__(self, data_dir: Path = DATA_DIR, output_dir: Path = OUTPUT_DIR):
         super().__init__()
         self.data_dir, self.output_dir = data_dir, output_dir
+        self.preferences = load_preferences(data_dir / "preferences.json")
+        self.previous_layout = (
+            self.preferences["ui_layout"] if self.preferences["ui_layout"] != "focus" else "classic"
+        )
+        self.revision = 0
+        self.export_generator = None
         self.graph = load_graph(data_dir / "nodes.csv", data_dir / "edges.csv")
         positions = load_layout(data_dir / "layout.json", self.graph)
         self.states: list[DijkstraState] = []
         self.state_index = 0
+        self.bookmarks = set()
         self.history: list[EditSnapshot] = []
         self.history_index = 0
         self.last_export_path: Path | None = None
@@ -80,14 +101,19 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.busy = False
         self.worker = None
         self.setWindowTitle("Visualizador de grafos · Caminos mínimos")
-        self.resize(1380, 940)
-        self.setMinimumSize(1040, 740)
+        self.resize(*self.preferences["window_size"])
+        self.setMinimumSize(940, 680)
         self.graph_view = GraphView(self.graph, positions)
         self.graph_view.layout_changed.connect(self._save_layout)
         self._build_ui()
         self._apply_style()
         self.history.append(self._snapshot("Estado inicial"))
         self.reset()
+        self.apply_appearance()
+        if self.preferences["ui_layout"] != "focus":
+            self.workspace_splitter.setSizes(self.preferences["workspace_sizes"])
+        if self.preferences["results_sizes"]:
+            self.visual_splitter.setSizes(self.preferences["results_sizes"])
         self.preset_baseline = self.preset_fingerprint()
         self.remember_preset()
         QTimer.singleShot(0, self.graph_view.fit_graph)
@@ -136,9 +162,10 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         row = QHBoxLayout(central)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
-        sidebar = QFrame()
+        sidebar = self.sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(365)
+        sidebar.setMinimumWidth(310)
+        sidebar.setMaximumWidth(520)
         controls = QVBoxLayout(sidebar)
         controls.setContentsMargins(16, 18, 16, 14)
         controls.setSpacing(10)
@@ -173,12 +200,13 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.exit_button.clicked.connect(self.close)
         controls.addWidget(self.exit_button)
 
-        graph_panel = QWidget()
+        graph_panel = self.graph_panel = QWidget()
         graph_column = QVBoxLayout(graph_panel)
         graph_column.setContentsMargins(14, 12, 14, 12)
         graph_column.setSpacing(10)
         toolbar = QHBoxLayout()
         self.graph_info = QLabel()
+        self.graph_info.setWordWrap(True)
         toolbar.addWidget(self.graph_info, 1)
         self.undo_action = self._action("↶", self.undo, ["Ctrl+Z"])
         self.redo_action = self._action("↷", self.redo, ["Ctrl+Y", "Ctrl+Shift+Z"])
@@ -193,11 +221,37 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.fit_button.setShortcut("Ctrl+0")
         self.fit_button.clicked.connect(self.graph_view.fit_graph)
         toolbar.addWidget(self.fit_button)
+        self.data_button = QPushButton("Datos del grafo")
+        self.data_button.clicked.connect(self.open_graph_data)
+        toolbar.addWidget(self.data_button)
         graph_column.addLayout(toolbar)
+        workspace_tools = QHBoxLayout()
+        self.appearance_button = QPushButton("Personalizar")
+        self.appearance_button.clicked.connect(self.open_appearance)
+        self.focus_button = QPushButton("Ampliar lienzo")
+        self.focus_button.clicked.connect(self.toggle_focus_layout)
+        self.copy_image_button = QPushButton("Copiar imagen")
+        self.copy_image_button.setToolTip(
+            "Copia la primera página del paso visible con las opciones de Exportar."
+        )
+        self.copy_image_button.clicked.connect(self.copy_current_image)
+        self.bookmark_button = QPushButton("Marcar paso")
+        self.bookmark_button.setCheckable(True)
+        self.bookmark_button.clicked.connect(self.toggle_bookmark)
+        for button in (
+            self.appearance_button,
+            self.focus_button,
+            self.copy_image_button,
+            self.bookmark_button,
+        ):
+            workspace_tools.addWidget(button)
+        workspace_tools.addStretch()
+        graph_column.addLayout(workspace_tools)
 
         display_row = QHBoxLayout()
         self.state_labels_checkbox = QCheckBox("Etiquetas de estado")
-        self.state_labels_checkbox.setChecked(True)
+        self.state_labels_checkbox.setChecked(self.preferences["state_labels"])
+        self.graph_view.set_state_labels_visible(self.preferences["state_labels"])
         self.state_labels_checkbox.setToolTip(
             "Muestra los estados de los nodos; INICIO, DESTINO y distancias permanecen visibles."
         )
@@ -205,6 +259,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.state_labels_checkbox.toggled.connect(self.refresh_export_preview)
         display_row.addWidget(self.state_labels_checkbox)
         self.edge_ids_checkbox = QCheckBox("IDs de conexiones")
+        self.edge_ids_checkbox.setChecked(self.preferences["edge_ids"])
+        self.graph_view.set_edge_ids_visible(self.preferences["edge_ids"])
         self.edge_ids_checkbox.setToolTip(
             "Muestra #ID junto al peso para distinguir conexiones paralelas. "
             "También se aplica a las exportaciones PNG."
@@ -241,6 +297,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.export_notice_title.setObjectName("section")
         notice_text.addWidget(self.export_notice_title)
         self.export_notice_path = QLabel()
+        self.export_notice_path.setTextFormat(Qt.TextFormat.PlainText)
         self.export_notice_path.setWordWrap(True)
         self.export_notice_path.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -282,10 +339,30 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.visual_splitter.setStretchFactor(0, 1)
         self.visual_splitter.setStretchFactor(1, 0)
         graph_column.addWidget(self.visual_splitter, 1)
-        row.addWidget(sidebar)
-        row.addWidget(graph_panel, 1)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_splitter.addWidget(sidebar)
+        self.workspace_splitter.addWidget(graph_panel)
+        self.workspace_splitter.setStretchFactor(0, 0)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.setSizes([365, 1015])
+        self.workspace_splitter.splitterMoved.connect(self.refit_workspace)
+        self.visual_splitter.splitterMoved.connect(self.refit_workspace)
+        row.addWidget(self.workspace_splitter)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Grafo cargado. Los cambios se guardan automáticamente.")
+        self.cancel_button = QPushButton("Cancelar operación")
+        self.cancel_button.clicked.connect(self.cancel_operation)
+        self.cancel_button.hide()
+        self.statusBar().addPermanentWidget(self.cancel_button)
+        self._action("Personalizar interfaz", self.open_appearance, ["Ctrl+,"])
+        self._action("Datos del grafo", self.open_graph_data, ["Ctrl+D"])
+        self._action("Copiar imagen del paso", self.copy_current_image, ["Ctrl+Shift+C"])
+        self._action("Ampliar lienzo", self.toggle_focus_layout, ["Ctrl+Shift+F"])
+        self._action("Paso anterior", lambda: self.navigate_step(-1), ["Alt+Left"])
+        self._action("Paso siguiente", lambda: self.navigate_step(1), ["Alt+Right"])
+        self.graph_view.navigation_requested.connect(self.navigate_step)
+        self.graph_view.playback_requested.connect(self.toggle_playback)
 
     def _build_legend(self, controls: QVBoxLayout) -> None:
         self.legend_button = QToolButton()
@@ -301,17 +378,17 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.legend_grid = QGridLayout()
         self.legend_grid.setHorizontalSpacing(12)
         self.legend_grid.setVerticalSpacing(8)
-        for index, (symbol, color, text) in enumerate(
+        for index, (symbol, _color, text) in enumerate(
             [
                 ("●", "#64748b", "Sin alcanzar"),
                 ("●", "#b48412", "Tentativo"),
                 ("●", "#329758", "Fijado (Dijkstra / A*)"),
                 ("●", "#18794e", "Nodo actual / k"),
-                ("━", "#e69b00", "Comparación"),
-                ("━", "#087e8b", "Ruta final"),
+                ("━", "#a66300", "Comparación"),
+                ("━", "#087e8b", "Ruta consultada"),
             ]
         ):
-            label = QLabel(f'<span style="color:{color}">{symbol}</span> {text}')
+            label = QLabel(f"{symbol} {text}")
             self.legend_grid.addWidget(label, index // 2, index % 2)
         column.addLayout(self.legend_grid)
         self.notation = QLabel("[distancia, predecesor] · Negritas: mejora")
@@ -342,11 +419,16 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.algorithm_hint.setWordWrap(True)
         setup.content.addWidget(self.algorithm_hint)
         self.start_combo, self.target_combo = NodeComboBox(), NodeComboBox()
+        self.algorithm_combo.setAccessibleName("Algoritmo")
+        self.start_combo.setAccessibleName("Origen")
+        self.target_combo.setAccessibleName("Destino")
         self.start_combo.set_nodes(self.graph)
         self.target_combo.set_nodes(self.graph)
         self.target_combo.setCurrentIndex(self.target_combo.count() - 1)
         selection = QGridLayout()
         self.start_label, self.target_label = QLabel("Origen"), QLabel("Destino")
+        self.start_label.setBuddy(self.start_combo)
+        self.target_label.setBuddy(self.target_combo)
         for index, (label, combo) in enumerate(
             [(self.start_label, self.start_combo), (self.target_label, self.target_combo)]
         ):
@@ -431,6 +513,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.step_label.setObjectName("step")
         self.step_label.setWordWrap(True)
         self.detail_label = QLabel()
+        self.detail_label.setTextFormat(Qt.TextFormat.PlainText)
         self.detail_label.setWordWrap(True)
         self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         controls.addStretch()
@@ -445,99 +528,15 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             self.cancel_export_preview()
 
     def _apply_style(self) -> None:
-        self.setStyleSheet("""
-            QTableWidget { alternate-background-color: #edf2f7; background: white; }
-            QHeaderView::section { background: #e2e8f0; color: #172b4d; padding: 4px; }
-            QMainWindow, QWidget { background: #f8fafc; color: #172b4d; }
-            QWidget { font-family: 'Sans Serif'; font-size: 13px; }
-            QFrame#sidebar { background: #ffffff; border-right: 1px solid #dce3ed; }
-            QFrame#sidebar QLabel, QFrame#sidebar QCheckBox { background: transparent; }
-            QCheckBox { spacing: 8px; }
-            QCheckBox::indicator { width: 16px; height: 16px; }
-            QCheckBox::indicator:unchecked {
-                background: #ffffff; border: 1px solid #94a3b8; border-radius: 3px;
-            }
-            QLabel#title { font-size: 27px; font-weight: 700; }
-            QLabel#mode { color: #087e8b; font-weight: 600; }
-            QLabel#section { font-weight: 600; font-size: 14px; }
-            QLabel#step { font-size: 16px; font-weight: 600; }
-            QLabel#hint { color: #64748b; font-size: 12px; }
-            QLabel#error { color: #b42318; }
-            QFrame#exportNotice {
-                background: #e9f8ef; border: 1px solid #9fd7b5; border-radius: 6px;
-            }
-            QFrame#exportNotice QLabel { background: transparent; color: #14532d; }
-            QFrame#sectionCard, QFrame#resultsPanel {
-                background: #ffffff; border: 1px solid #dce3ed; border-radius: 10px;
-            }
-            QFrame#sectionCard QLabel, QFrame#resultsPanel QLabel {
-                background: transparent; border: 0;
-            }
-            QFrame#executionCard {
-                background: #edf7f5; border: 1px solid #c9e5df; border-radius: 10px;
-            }
-            QFrame#executionCard QLabel { background: transparent; }
-            QGraphicsView { border: 1px solid #dce3ed; border-radius: 10px; }
-            QSplitter::handle:horizontal { background: #e2e8f0; width: 6px; margin: 6px 2px; }
-            QSplitter::handle:vertical { background: #e2e8f0; height: 6px; margin: 2px 6px; }
-            QPushButton, QToolButton, QComboBox, QLineEdit, QSpinBox {
-                background: #ffffff; border: 1px solid #cbd5e1;
-                border-radius: 6px; padding: 7px 9px;
-            }
-            QToolButton#history { font-size: 20px; padding: 2px 8px; }
-            QPushButton:hover, QToolButton:hover { background: #edf3f8; border-color: #94a3b8; }
-            QPushButton#primary {
-                background: #0f766e; color: white; border-color: #0f766e;
-            }
-            QPushButton#primary:hover { background: #115e59; }
-            QPushButton#destructive { color: #b42318; }
-            QPushButton#destructive:hover { background: #fff1f2; border-color: #fda4af; }
-            QPushButton:disabled, QPushButton#primary:disabled, QPushButton#destructive:disabled,
-            QToolButton:disabled,
-            QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled {
-                background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;
-            }
-            QComboBox QAbstractItemView { selection-background-color: #ccfbf1; }
-            QStatusBar { border-top: 1px solid #dce3ed; color: #526179; }
-            QScrollBar:vertical { background: #eef2f7; width: 10px; margin: 0; }
-            QScrollBar::handle:vertical {
-                background: #b6c3d3; min-height: 28px; border-radius: 4px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-            QScrollBar:horizontal { background: #eef2f7; height: 10px; margin: 0; }
-            QScrollBar::handle:horizontal {
-                background: #b6c3d3; min-width: 28px; border-radius: 4px;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: transparent;
-            }
-            QFrame#controlCard {
-                background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 16px;
-            }
-            QScrollArea#controlScroll, QWidget#controlViewport, QWidget#controlPage {
-                background: transparent; border: 0;
-            }
-            QWidget#controlPage QLabel { background: transparent; }
-            QTabWidget, QTabBar, QTabWidget > QStackedWidget { background: #ffffff; }
-            QTabWidget::pane { border: 0; background: #ffffff; }
-            QTabBar::tab {
-                padding: 9px 5px; background: #f1f5f9; border: 1px solid #cbd5e1;
-                min-width: 0px; margin-bottom: 8px;
-            }
-            QTabBar::tab:first {
-                border-top-left-radius: 19px; border-bottom-left-radius: 19px;
-                border-right: 0;
-            }
-            QTabBar::tab:last {
-                border-top-right-radius: 19px; border-bottom-right-radius: 19px;
-            }
-            QTabBar::tab:selected { background: #d6eee8; color: #0f766e; }
-            QTabBar::tab:disabled { color: #94a3b8; background: #f1f5f9; }
-        """)
+        from graph_visualizer.ui.appearance_controls import style_sheet
+        from graph_visualizer.ui.themes import palette_for
+
+        self.setStyleSheet(
+            style_sheet(
+                palette_for(self.preferences["theme"], self.preferences["accent"]),
+                self.preferences["ui_font_size"],
+            )
+        )
 
     def _snapshot(self, description: str) -> EditSnapshot:
         return EditSnapshot(
@@ -548,6 +547,9 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             description,
             self.preset_path,
             self.preset_baseline,
+            self.algorithm_combo.currentText(),
+            self.detail_checkbox.isChecked(),
+            self.early_stop.isChecked(),
         )
 
     def _restore(self, snapshot: EditSnapshot) -> None:
@@ -566,6 +568,10 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         ):
             combo.set_nodes(self.graph, selected)
         self.editor.set_graph(self.graph)
+        if self.algorithm_combo.currentText() != snapshot.algorithm:
+            self.algorithm_combo.setCurrentText(snapshot.algorithm)
+        self.detail_checkbox.setChecked(snapshot.detail)
+        self.early_stop.setChecked(snapshot.early_stop)
         self.graph_view.apply_state(None, self.start, self.target)
         self.graph_info.setText(
             f"{len(self.graph)} nodos · {self.graph.number_of_edges()} conexiones · "
@@ -591,14 +597,11 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         return True
 
     def _commit_edit(self, snapshot: EditSnapshot) -> bool:
-        if self.states:
+        if self.states or self.busy:
             return False
+        self.remember_preset()
         current = self.history[self.history_index]
-        if (
-            graphs_equal(current.graph, snapshot.graph)
-            and current.positions == snapshot.positions
-            and (current.start, current.target) == (snapshot.start, snapshot.target)
-        ):
+        if self._same_edit(current, snapshot):
             return False
         if not self._persist_and_restore(snapshot):
             return False
@@ -608,6 +611,7 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         if len(self.history) > 101:
             self.history.pop(0)
         self.history_index = len(self.history) - 1
+        self.revision += 1
         self._sync_history()
         saved = current.positions != snapshot.positions or not graphs_equal(
             current.graph, snapshot.graph
@@ -616,8 +620,18 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.statusBar().showMessage(message, 5000)
         return True
 
+    @staticmethod
+    def _same_edit(current, snapshot):
+        return (
+            graphs_equal(current.graph, snapshot.graph)
+            and current.positions == snapshot.positions
+            and (current.start, current.target) == (snapshot.start, snapshot.target)
+            and (current.algorithm, current.detail, current.early_stop, current.preset_path)
+            == (snapshot.algorithm, snapshot.detail, snapshot.early_stop, snapshot.preset_path)
+        )
+
     def _sync_history(self) -> None:
-        editable = not self.states
+        editable = not self.states and not self.busy
         self.undo_action.setEnabled(editable and self.history_index > 0)
         self.redo_action.setEnabled(editable and self.history_index < len(self.history) - 1)
         undo_text = self.history[self.history_index].description if self.history_index else ""
@@ -634,20 +648,22 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         )
 
     def undo(self) -> None:
-        if self.states or self.history_index == 0:
+        if self.states or self.busy or self.history_index == 0:
             return
         description = self.history[self.history_index].description
         if self._persist_and_restore(self.history[self.history_index - 1]):
             self.history_index -= 1
+            self.revision += 1
             self._sync_history()
             self.statusBar().showMessage(f"Deshecho: {description}", 5000)
 
     def redo(self) -> None:
-        if self.states or self.history_index >= len(self.history) - 1:
+        if self.states or self.busy or self.history_index >= len(self.history) - 1:
             return
         snapshot = self.history[self.history_index + 1]
         if self._persist_and_restore(snapshot):
             self.history_index += 1
+            self.revision += 1
             self._sync_history()
             self.statusBar().showMessage(f"Rehecho: {snapshot.description}", 5000)
 
@@ -835,6 +851,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         return self._commit_edit(snapshot)
 
     def initialize(self) -> None:
+        if self.busy:
+            return
         self.stop_playback()
         algorithm = self.algorithm_combo.currentText()
         estimated = (
@@ -846,6 +864,9 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             from graph_visualizer.ui.worker import AlgorithmWorker
 
             self.busy = True
+            self._sync_history()
+            self.cancel_button.setEnabled(True)
+            self.cancel_button.show()
             self.centralWidget().setEnabled(False)
             self.statusBar().showMessage("Calculando estados en segundo plano…")
             self.worker = AlgorithmWorker(
@@ -857,8 +878,11 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
                 self.early_stop.isChecked(),
                 self,
             )
-            self.worker.ready.connect(self.execution_ready)
+            revision = self.revision
+            self.worker.ready.connect(lambda states: self.execution_ready(states, revision))
             self.worker.failed.connect(self.execution_failed)
+            self.worker.cancelled.connect(self.execution_cancelled)
+            self.worker.finished.connect(self.worker.deleteLater)
             self.worker.start()
             return
         try:
@@ -891,12 +915,22 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
 
     def execution_failed(self, message):
         self.busy = False
+        self.worker = None
+        self.cancel_button.hide()
         self.centralWidget().setEnabled(True)
+        self._sync_history()
+        self.statusBar().showMessage("No se pudo calcular. Revisa el grafo y vuelve a iniciar.")
         QMessageBox.warning(self, "No se pudo calcular", message)
 
-    def execution_ready(self, states):
+    def execution_ready(self, states, revision=None):
         self.busy = False
+        self.worker = None
+        self.cancel_button.hide()
         self.centralWidget().setEnabled(True)
+        if revision is not None and revision != self.revision:
+            self._sync_history()
+            self.statusBar().showMessage("El grafo cambió durante el cálculo. Inicia de nuevo.")
+            return
         self.states = states
         self.early_stop.setEnabled(False)
         self.statusBar().showMessage(f"Ejecución preparada · {len(states)} pasos disponibles")
@@ -906,6 +940,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.target_combo.setEnabled(self.algorithm_combo.currentText() not in {"Dijkstra", "A*"})
         self._refresh_swap_button()
         self.run_button.setEnabled(False)
+        self.copy_image_button.setEnabled(True)
+        self.bookmark_button.setEnabled(True)
         self.reset_button.setEnabled(True)
         self.tabs.setCurrentIndex(0)
         self.tabs.setTabEnabled(1, False)
@@ -928,7 +964,10 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self._sync_history()
         self.show_state(0)
         self.centralWidget().layout().activate()
-        if algorithm != "Dijkstra":
+        if (
+            algorithm != "Dijkstra"
+            and self.visual_splitter.orientation() == Qt.Orientation.Horizontal
+        ):
             tables = (
                 self.matrix_panel.tables
                 if algorithm == "Floyd-Warshall"
@@ -946,6 +985,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.refresh_export_preview()
 
     def change_graph_type(self, directed):
+        if self.states or self.busy:
+            return
         from graph_visualizer.core.graph import convert_graph
 
         snapshot = self._snapshot("Cambiar tipo de grafo")
@@ -971,6 +1012,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         )
 
     def toggle_playback(self):
+        if self.busy:
+            return
         if self.play_timer.isActive():
             self.stop_playback()
         elif self.states:
@@ -1005,7 +1048,85 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             event.ignore()
             return
         self.cancel_export_preview()
+        self.persist_preferences()
         super().closeEvent(event)
+
+    def navigate_step(self, offset):
+        if self.states and not self.busy:
+            self.stop_playback()
+            self.show_state(self.state_index + offset)
+
+    def execution_cancelled(self):
+        self.worker = None
+        self.busy = False
+        self.cancel_button.hide()
+        self.centralWidget().setEnabled(True)
+        self._sync_history()
+        self.statusBar().showMessage(
+            "Cálculo cancelado. Puedes editar el grafo o iniciar de nuevo."
+        )
+
+    def cancel_operation(self):
+        if not self.busy:
+            return
+        if self.worker is not None:
+            self.worker.requestInterruption()
+            self.cancel_button.setEnabled(False)
+            self.statusBar().showMessage("Cancelando cálculo…")
+        elif self.export_generator is not None:
+            self.export_generator.close()
+            self.export_generator = None
+            self.busy = False
+            self.centralWidget().setEnabled(True)
+            self.cancel_button.hide()
+            self._sync_history()
+            self.refresh_export_preview()
+            self.statusBar().showMessage(
+                "Exportación cancelada. No se publicaron archivos incompletos."
+            )
+
+    def copy_current_image(self):
+        if not self.states or self.busy:
+            return
+        from PySide6.QtWidgets import QApplication
+
+        from graph_visualizer.export.image_exporter import render_state
+
+        try:
+            image = render_state(
+                self.graph,
+                self.graph_view.positions(),
+                self.states[self.state_index],
+                self.start,
+                self.target,
+                self.state_index,
+                len(self.states),
+                **self.export_options(),
+            )
+            QApplication.clipboard().setImage(image)
+            self.statusBar().showMessage("Imagen del paso visible copiada al portapapeles.", 5000)
+        except (ValueError, OSError) as error:
+            QMessageBox.warning(self, "No se pudo copiar la imagen", str(error))
+
+    def open_graph_data(self):
+        if self.busy:
+            return
+        from graph_visualizer.ui.graph_data_dialog import GraphDataDialog
+
+        self.stop_playback()
+        GraphDataDialog(self).open()
+
+    def toggle_bookmark(self):
+        if not self.states or self.busy:
+            return
+        step = self.states[self.state_index].step
+        if step in self.bookmarks:
+            self.bookmarks.remove(step)
+        else:
+            self.bookmarks.add(step)
+        self.bookmark_button.setText("Quitar marca" if step in self.bookmarks else "Marcar paso")
+        self.bookmark_button.setChecked(step in self.bookmarks)
+        self.refresh_export_preview()
 
     def algorithm_changed(self):
         self.reset()
@@ -1029,6 +1150,8 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.target_label.setText(
             "Consultar hasta" if algorithm not in {"Dijkstra", "A*"} else "Destino"
         )
+        self.start_combo.setAccessibleName(self.start_label.text())
+        self.target_combo.setAccessibleName(self.target_label.text())
         self.export_detail.setEnabled(algorithm != "Bellman-Ford")
         self.export_detail.setToolTip(
             "Bellman-Ford exporta un paso por arco."
@@ -1062,6 +1185,9 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         if not self.states or not 0 <= index < len(self.states):
             return
         self.state_index = index
+        marked = self.states[index].step in self.bookmarks
+        self.bookmark_button.setChecked(marked)
+        self.bookmark_button.setText("Quitar marca" if marked else "Marcar paso")
         phase_index = max(
             (i for i in range(self.jump_phase.count()) if self.jump_phase.itemData(i) <= index),
             default=0,
@@ -1084,16 +1210,20 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.detail_label.setText(
             state.explanation + "\n" + route_description(state, self.start, self.target)
         )
+        self.graph_view.setAccessibleDescription(self.detail_label.text())
         self.step_label.setText(
             f"{state.algorithm} · {state.phase} · "
             f"Iteración {state.iteration} · Paso {index} / {len(self.states) - 1}"
         )
 
     def reset(self) -> None:
+        if self.busy:
+            return
         self.stop_playback()
         for action in self.export_actions:
             action.setEnabled(False)
         self.states = []
+        self.bookmarks.clear()
         self.cancel_export_preview()
         self.export_preview_cache.clear()
         self._refresh_play_button()
@@ -1109,6 +1239,10 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         self.target_combo.setEnabled(True)
         self._refresh_swap_button()
         self.run_button.setEnabled(True)
+        self.copy_image_button.setEnabled(False)
+        self.bookmark_button.setEnabled(False)
+        self.bookmark_button.setChecked(False)
+        self.bookmark_button.setText("Marcar paso")
         self.early_stop.setEnabled(True)
         self.previous_button.setEnabled(False)
         self.next_button.setEnabled(False)
@@ -1141,8 +1275,14 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
         if self.preview_before_export.isChecked() and not preview_confirmed:
             self.show_export_sample(kind)
             return
-        states = self._export_states()
-        index = states.equivalent(self.states[self.state_index].step)
+        states = self._export_states(kind)
+        if not states:
+            return
+        index = (
+            self.state_index
+            if kind == "current"
+            else max(0, states.equivalent(self.states[self.state_index].step))
+        )
         self.export_generator = export_job(
             self.graph.copy(),
             self.graph_view.positions(),
@@ -1152,25 +1292,34 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             index,
             kind,
             self.output_dir,
-            show_state_labels=self.graph_view.show_state_labels,
-            show_edge_ids=self.graph_view.show_edge_ids,
-            simple=self.export_style.currentIndex() == 1,
             output_format=self.export_format.currentData(),
+            execution_settings=self.current_preset().settings,
+            **self.export_options(),
         )
         self.export_kind = kind
         self.busy = True
+        self._sync_history()
+        self.export_notice.hide()
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.show()
+        self.persist_preferences()
         self.centralWidget().setEnabled(False)
-        self.statusBar().showMessage("Generando imágenes…")
+        self.statusBar().showMessage("Generando páginas…")
         QTimer.singleShot(0, self.advance_export)
 
     def advance_export(self):
+        if not self.busy or self.export_generator is None:
+            return
         try:
             completed, total = next(self.export_generator)
             self.statusBar().showMessage(f"Exportando {completed}/{total}…")
             QTimer.singleShot(0, self.advance_export)
         except StopIteration as result:
             self.busy = False
+            self.export_generator = None
+            self.cancel_button.hide()
             self.centralWidget().setEnabled(True)
+            self._sync_history()
             self.last_export_path = result.value
             if self.export_kind == "combined" and self.last_export_path.is_dir():
                 self.export_preview_cache[self._export_preview_key(self._export_states())] = sum(
@@ -1183,7 +1332,10 @@ class MainWindow(PresetControls, ExportControls, QMainWindow):
             self.statusBar().showMessage(f"Exportación completada · {result.value}")
         except (OSError, ValueError) as error:
             self.busy = False
+            self.export_generator = None
+            self.cancel_button.hide()
             self.centralWidget().setEnabled(True)
+            self._sync_history()
             self.statusBar().showMessage("No se pudo exportar")
             self.refresh_export_preview()
             QMessageBox.warning(self, "No se pudo exportar", str(error))

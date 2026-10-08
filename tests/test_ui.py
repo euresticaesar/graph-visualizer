@@ -18,7 +18,7 @@ def test_playback_controls_and_reset(window, qapp):
     window.target_combo.setCurrentIndex(window.target_combo.findData("12"))
     QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
     assert window.state_index == 0
-    assert window.graph_view.nodes["1"].label.text() == "[0, null]"
+    assert window.graph_view.nodes["1"].label.text() == "[0, —]"
     assert not window.start_combo.isEnabled()
     assert not window.graph_view.nodes["1"].flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable
     states = window.states
@@ -26,7 +26,7 @@ def test_playback_controls_and_reset(window, qapp):
     assert window.state_index == 1
     assert window.graph_view.nodes["5"].label.text() == "[2, 1]"
     QTest.mouseClick(window.previous_button, Qt.MouseButton.LeftButton)
-    assert window.graph_view.nodes["5"].label.text() == "[∞, null]"
+    assert window.graph_view.nodes["5"].label.text() == "[∞, —]"
     assert window.states is states
     window.show_state(len(states) - 1)
     assert not window.next_button.isEnabled()
@@ -36,7 +36,7 @@ def test_playback_controls_and_reset(window, qapp):
     assert window.graph_view.positions() == positions
     assert not window.states
     assert window.start_combo.isEnabled()
-    assert window.graph_view.nodes["1"].label.text() == "[∞, null]"
+    assert window.graph_view.nodes["1"].label.text() == "[∞, —]"
     assert window.graph_view.edges["1", "5", 0].pen().widthF() == 2
 
 
@@ -99,7 +99,7 @@ def test_unreachable_target_in_ui_and_export(qapp, tmp_path):
         window.initialize()
         window.show_state(len(window.states) - 1)
         assert "No hay ruta" in window.detail_label.text()
-        assert window.graph_view.nodes["3"].label.text() == "[∞, null]"
+        assert window.graph_view.nodes["3"].label.text() == "[∞, —]"
         assert window.graph_view.nodes["3"].is_target
         assert all(edge.pen().widthF() == 2 for edge in window.graph_view.edges.values())
         window.preview_before_export.setChecked(False)

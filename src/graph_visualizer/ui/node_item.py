@@ -1,22 +1,49 @@
 import math
+from collections import Counter
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsObject, QGraphicsSimpleTextItem, QStyle
 
 from graph_visualizer.core.models import format_number as format_distance
+from graph_visualizer.ui.themes import palette_for
 
 UNREACHED = "#e2e8f0"
 TENTATIVE = "#fef3c7"
 VISITED = "#a7e3bd"
 CURRENT = "#18794e"
-TARGET = "#dc3545"
+TARGET = "#2563eb"
 PATH = "#087e8b"
+
+
+def node_aliases(nodes, font_scale=1.0):
+    font = QFont("Sans Serif", 13, QFont.Weight.Bold)
+    font.setPointSizeF(13 * font_scale)
+    metrics = QFontMetricsF(font)
+    width = 200 * font_scale
+    aliases = {n: metrics.elidedText(n, Qt.TextElideMode.ElideMiddle, width) for n in nodes}
+    used = set(aliases.values())
+    ambiguous = {alias for alias, count in Counter(aliases.values()).items() if count > 1}
+    for number, node in enumerate(sorted(nodes), 1):
+        if aliases[node] not in ambiguous:
+            continue
+        suffix = f" [{number}]"
+        alias = (
+            metrics.elidedText(
+                node, Qt.TextElideMode.ElideMiddle, width - metrics.horizontalAdvance(suffix)
+            )
+            + suffix
+        )
+        while alias in used:
+            alias += "·"
+        aliases[node] = alias
+        used.add(alias)
+    return aliases
 
 
 class AnnotationLabel(QGraphicsSimpleTextItem):
     def paint(self, painter, option, widget=None) -> None:
-        painter.fillRect(self.boundingRect(), QColor("#f8fafc"))
+        painter.fillRect(self.boundingRect(), QColor(self.parentItem().palette.canvas))
         super().paint(painter, option, widget)
 
 
@@ -24,19 +51,23 @@ class NodeItem(QGraphicsObject):
     position_changed = Signal()
     movement_finished = Signal()
 
-    def __init__(self, node_id: str):
+    def __init__(self, node_id: str, palette=None, font_scale=1.0, display_id=None):
         super().__init__()
         self.node_id = node_id
-        self.node_width = max(
-            52,
-            QFontMetricsF(QFont("Sans Serif", 13, QFont.Weight.Bold)).horizontalAdvance(
-                str(node_id)
-            )
-            + 20,
+        self.palette = palette or palette_for()
+        self.font_scale = font_scale
+        self.id_font = QFont("Sans Serif", 13, QFont.Weight.Bold)
+        self.id_font.setPointSizeF(13 * font_scale)
+        metrics = QFontMetricsF(self.id_font)
+        self.display_id = display_id or metrics.elidedText(
+            node_id, Qt.TextElideMode.ElideMiddle, 200 * font_scale
         )
+        self.node_width = max(52 * font_scale, metrics.horizontalAdvance(self.display_id) + 20)
+        self.node_height = 52 * font_scale
         self.fill = QColor(UNREACHED)
         self.is_target = False
         self.is_current = False
+        self.is_affected = False
         self.drag_origin = QPointF()
         self.show_state_labels = True
         self.caption_roles: list[str] = []
@@ -50,62 +81,108 @@ class NodeItem(QGraphicsObject):
         self.setAcceptHoverEvents(True)
         self.hovered = False
         self.label = AnnotationLabel(self)
-        self.label.setFont(QFont("Sans Serif", 11))
-        self.label.setBrush(QColor("#172b4d"))
+        label_font = QFont("Sans Serif")
+        label_font.setPointSizeF(11 * font_scale)
+        self.label.setFont(label_font)
+        self.label.setBrush(QColor(self.palette.text))
         self.label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.caption = AnnotationLabel(self)
-        self.caption.setFont(QFont("Sans Serif", 9))
-        self.caption.setBrush(QColor("#526179"))
+        caption_font = QFont("Sans Serif")
+        caption_font.setPointSizeF(9 * font_scale)
+        self.caption.setFont(caption_font)
+        self.caption.setBrush(QColor(self.palette.muted))
         self.caption.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.set_state(math.inf, None, False, False, False, False, False)
 
     def boundingRect(self) -> QRectF:
-        return QRectF(-self.node_width / 2 - 8, -34, self.node_width + 16, 68)
+        return self.node_rect().adjusted(-8, -8, 8, 8)
+
+    def node_rect(self):
+        return QRectF(
+            -self.node_width / 2, -self.node_height / 2, self.node_width, self.node_height
+        )
+
+    def shape(self):
+        path = QPainterPath()
+        path.addEllipse(self.node_rect().adjusted(-7, -7, 7, 7))
+        return path
+
+    def connection_zone(self, point):
+        radius = math.hypot(point.x() / (self.node_width / 2), point.y() / (self.node_height / 2))
+        return 0.70 <= radius <= 1.3
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self.hovered and self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable:
-            painter.setPen(QPen(QColor(PATH), 2, Qt.PenStyle.DotLine))
+            painter.setPen(QPen(QColor(self.palette.accent), 2, Qt.PenStyle.DotLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(QRectF(-30, -30, 60, 60))
+            painter.drawEllipse(self.node_rect().adjusted(-4, -4, 4, 4))
         if self.is_current or option.state & QStyle.StateFlag.State_Selected:
-            painter.setPen(QPen(QColor(CURRENT), 1.5, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(QColor(self.palette.current), 1.5, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(QRectF(-32, -32, 64, 64))
+            painter.drawEllipse(self.node_rect().adjusted(-6, -6, 6, 6))
         painter.setPen(
-            QPen(QColor(TARGET if self.is_target else "#64748b"), 3 if self.is_target else 1.5)
+            QPen(
+                QColor(self.palette.target if self.is_target else self.palette.edge),
+                3 if self.is_target else 1.5,
+            )
         )
         painter.setBrush(self.fill)
-        painter.drawEllipse(QRectF(-self.node_width / 2, -26, self.node_width, 52))
-        painter.setPen(QColor("white" if self.is_current else "#172b4d"))
-        painter.setFont(QFont("Sans Serif", 13, QFont.Weight.Bold))
+        painter.drawEllipse(self.node_rect())
+        painter.setPen(
+            QColor(
+                self.palette.current_text
+                if self.is_current and not self.is_affected
+                else self.palette.text
+            )
+        )
+        painter.setFont(self.id_font)
         painter.drawText(
-            QRectF(-self.node_width / 2, -26, self.node_width, 52),
+            self.node_rect(),
             Qt.AlignmentFlag.AlignCenter,
-            str(self.node_id),
+            self.display_id,
         )
 
-    def set_state(self, distance, predecessor, visited, current, start, target, updated) -> None:
+    def set_state(
+        self,
+        distance,
+        predecessor,
+        visited,
+        current,
+        start,
+        target,
+        updated,
+        *,
+        predecessor_label=None,
+    ) -> None:
         self.is_target, self.is_current = target, current
+        self.is_affected = distance == -math.inf
         color = (
-            CURRENT
+            self.palette.error_fill
+            if self.is_affected
+            else self.palette.current
             if current
-            else VISITED
+            else self.palette.visited
             if visited
-            else (TENTATIVE if math.isfinite(distance) else UNREACHED)
+            else (self.palette.tentative if math.isfinite(distance) else self.palette.unreached)
         )
         self.fill = QColor(color)
-        self.label.setText(
-            f"[{format_distance(distance)}, {predecessor if predecessor is not None else 'null'}]"
-        )
+        pred = predecessor if predecessor is not None else "—"
+        if predecessor is not None:
+            pred = QFontMetricsF(self.label.font()).elidedText(
+                predecessor_label or pred, Qt.TextElideMode.ElideMiddle, 180 * self.font_scale
+            )
+        self.label.setText(f"[{format_distance(distance)}, {pred}]")
         font = self.label.font()
         font.setBold(updated)
         self.label.setFont(font)
-        self.label.setPos(-self.label.boundingRect().width() / 2, 35)
+        self.label.setPos(-self.label.boundingRect().width() / 2, self.node_height / 2 + 9)
         state = (
-            "actual"
+            "sin mínimo finito"
+            if self.is_affected
+            else "actual"
             if current
-            else "visitado"
+            else "fijado"
             if visited
             else ("tentativo" if math.isfinite(distance) else "sin alcanzar")
         )
@@ -114,7 +191,8 @@ class NodeItem(QGraphicsObject):
         self._update_caption()
         full_caption = " · ".join([*self.caption_roles, state])
         self.setToolTip(
-            f"Nodo {self.node_id} — {full_caption}\n{self.label.text()}\n"
+            f"Nodo {self.node_id} — {full_caption}\n"
+            f"Distancia: {distance!r} · Predecesor: {predecessor or '—'}\n"
             "En edición: arrastra el centro para mover o el borde para conectar."
         )
         self.update()
@@ -129,7 +207,9 @@ class NodeItem(QGraphicsObject):
             parts.append(self.state_caption)
         self.caption.setText(" · ".join(parts))
         self.caption.setVisible(bool(parts))
-        self.caption.setPos(-self.caption.boundingRect().width() / 2, -53)
+        self.caption.setPos(
+            -self.caption.boundingRect().width() / 2, -self.node_height / 2 - 27 * self.font_scale
+        )
 
     def hoverEnterEvent(self, event) -> None:
         self.hovered = True
@@ -138,9 +218,10 @@ class NodeItem(QGraphicsObject):
 
     def hoverMoveEvent(self, event) -> None:
         if self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable:
-            distance = math.hypot(event.pos().x(), event.pos().y())
             self.setCursor(
-                Qt.CursorShape.CrossCursor if 19 <= distance <= 34 else Qt.CursorShape.SizeAllCursor
+                Qt.CursorShape.CrossCursor
+                if self.connection_zone(event.pos())
+                else Qt.CursorShape.SizeAllCursor
             )
         else:
             self.unsetCursor()

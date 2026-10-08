@@ -4,13 +4,13 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsSimpleTextItem
 
-from graph_visualizer.ui.node_item import PATH, NodeItem, format_distance
+from graph_visualizer.ui.node_item import NodeItem, format_distance
 
 
 class WeightLabel(QGraphicsSimpleTextItem):
     def paint(self, painter, option, widget=None) -> None:
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#f8fafc"))
+        painter.setBrush(QColor(self.parentItem().palette.canvas))
         painter.drawRoundedRect(self.boundingRect(), 3, 3)
         super().paint(painter, option, widget)
 
@@ -31,6 +31,7 @@ class EdgeItem(QGraphicsPathItem):
     ):
         super().__init__()
         self.source, self.target = source, target
+        self.palette = source.palette
         self.weight = weight
         self.key, self.offset = key, offset
         self.directed = directed
@@ -41,8 +42,10 @@ class EdgeItem(QGraphicsPathItem):
             f" · Peso {format_distance(weight)}\nHaz clic para cambiar el peso"
         )
         self.label = WeightLabel("", self)
-        self.label.setFont(QFont("Sans Serif", 11, QFont.Weight.DemiBold))
-        self.label.setBrush(QColor("#475569"))
+        label_font = QFont("Sans Serif", 11, QFont.Weight.DemiBold)
+        label_font.setPointSizeF(11 * source.font_scale)
+        self.label.setFont(label_font)
+        self.label.setBrush(QColor(self.palette.muted))
         self.label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.label.setToolTip(self.toolTip())
         self.source.position_changed.connect(self.update_position)
@@ -70,7 +73,7 @@ class EdgeItem(QGraphicsPathItem):
         if self.directed:
             path = self.path()
             t = 0.98
-            while t > 0.1 and self.target.boundingRect().contains(
+            while t > 0.1 and self.target.shape().contains(
                 path.pointAtPercent(t) - self.target.pos()
             ):
                 t -= 0.01
@@ -90,8 +93,13 @@ class EdgeItem(QGraphicsPathItem):
         return stroker.createStroke(self.path())
 
     def boundingRect(self):
-        return self.path().boundingRect().adjusted(-6, -6, 6, 6)
+        return self.path().boundingRect().adjusted(-9, -9, 9, 9)
 
     def set_highlighted(self, highlighted: bool) -> None:
-        self.setPen(QPen(QColor(PATH if highlighted else "#94a3b8"), 5 if highlighted else 2))
-        self.label.setBrush(QColor(PATH if highlighted else "#475569"))
+        self.setPen(
+            QPen(
+                QColor(self.palette.accent if highlighted else self.palette.edge),
+                5 if highlighted else 2,
+            )
+        )
+        self.label.setBrush(QColor(self.palette.accent if highlighted else self.palette.muted))

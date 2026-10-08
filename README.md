@@ -13,7 +13,9 @@ uv sync
 uv run graph-visualizer
 ```
 
-En **Editar** crea o modifica el grafo; en **Recorrido** elige el algoritmo, origen y destino y pulsa **Iniciar**. Usa **Presets** para guardar ejemplos y **Exportar** para generar PNG o un PDF de diapositivas horizontales, con vista previa.
+En **Editar** crea o modifica el grafo; en **Recorrido** elige el algoritmo, origen y destino y pulsa **Iniciar**. Usa **Presets** para guardar ejemplos y **Exportar** para generar PNG, PDF vectorial o SVG, con vista previa navegable.
+
+**Personalizar** ofrece cinco esquemas de color, acento propio, tamaño de texto y cuatro distribuciones de paneles. Cada paso didáctico se exporta como una diapositiva horizontal **16:9 completa**, con grafo, tablas, explicación, ruta y leyenda. La composición adapta columnas y escala al contenido; puedes elegir HD, QHD o 4K. Cada carpeta incluye el grafo y un manifiesto de los pasos originales.
 
 ## Documentación
 
@@ -26,5 +28,7 @@ En **Editar** crea o modifica el grafo; en **Recorrido** elige el algoritmo, ori
 | Presets | [Biblioteca y formato JSON](docs/presets.md) |
 | Datos | [Persistencia y compatibilidad](docs/datos.md) |
 | Exportaciones | [Estilos, cantidad de imágenes y límites](docs/exportaciones.md) |
+| Personalización | [Temas, distribuciones y preferencias](docs/personalizacion.md) |
+| Auditoría | [Hallazgos, correcciones y siguientes mejoras](docs/auditoria.md) |
 | Arquitectura | [Organización del código y rendimiento](docs/arquitectura.md) |
 | Desarrollo | [Pruebas, estilo y construcción del paquete](docs/desarrollo.md) |

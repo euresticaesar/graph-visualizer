@@ -8,7 +8,7 @@ from graph_visualizer.core.dijkstra import dijkstra_steps
 from graph_visualizer.core.graph import ordered_arcs, validate_graph
 
 
-def astar_steps(graph, start, target, *, detailed=False):
+def astar_steps(graph, start, target, *, detailed=False, _cancelled=None):
     validate_graph(graph)
     if start not in graph or target not in graph:
         raise ValueError("Selecciona origen y destino existentes.")
@@ -23,4 +23,6 @@ def astar_steps(graph, start, target, *, detailed=False):
     heuristics = {node: minimum * hops.get(node, unreachable_hops) for node in graph}
     if not all(math.isfinite(value) for value in heuristics.values()):
         raise ValueError("La heurística excede el rango numérico permitido.")
-    return dijkstra_steps(graph, start, target, detailed=detailed, _heuristics=heuristics)
+    return dijkstra_steps(
+        graph, start, target, detailed=detailed, _heuristics=heuristics, _cancelled=_cancelled
+    )

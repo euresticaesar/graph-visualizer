@@ -11,8 +11,11 @@ from graph_visualizer.core.graph import EdgeId
 def format_number(value: float) -> str:
     if math.isinf(value):
         return "−∞" if value < 0 else "∞"
-    text = f"{value:.6f}".rstrip("0").rstrip(".")
-    return "0" if text in {"", "-0"} else text
+    if value == 0:
+        return "0"
+    if abs(value) < 0.000001 or abs(value) >= 1_000_000_000:
+        return f"{value:.12g}"
+    return f"{value:.12f}".rstrip("0").rstrip(".")
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,10 @@ class AlgorithmState:
 
 
 DijkstraState = AlgorithmState
+
+
+class AlgorithmCancelled(Exception):
+    """A cooperative interruption, not a graph-validation failure."""
 
 
 class StateView(Sequence):

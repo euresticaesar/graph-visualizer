@@ -16,8 +16,10 @@ Doble clic en el fondo agrega un nodo; arrastrar su centro lo mueve; arrastrar e
 
 ## Etiquetas y ayuda
 
-**Gestos y ayuda** despliega las instrucciones sobre el lienzo; **Colores y notación** abre la leyenda en la barra izquierda. Ambas comienzan plegadas para dejar más espacio al grafo. Los toggles de etiquetas de estado e IDs de conexiones conservan su selección durante la sesión, incluidos cambios de algoritmo, edición, deshacer/rehacer y cargas de presets; no modifican los datos del grafo ni el preset.
+**Gestos y ayuda** despliega las instrucciones sobre el lienzo; **Colores y notación** abre la leyenda en la barra izquierda. Ambas comienzan plegadas para dejar más espacio al grafo. Los toggles de etiquetas de estado e IDs de conexiones guardan su selección entre sesiones, incluidos cambios de algoritmo, edición, deshacer/rehacer y cargas de presets; no modifican los datos del grafo ni el preset.
 
 ## Autoguardado e historial
 
-Los cambios se guardan automáticamente. **↶ / ↷**, `Ctrl+Z` y `Ctrl+Y` conservan hasta 100 acciones, incluidos movimientos, cambios de tipo y cargas de presets. Durante la ejecución se bloquea la edición; **Volver a editar** detiene la reproducción y conserva el historial.
+Los cambios se guardan automáticamente. **↶ / ↷**, `Ctrl+Z` y `Ctrl+Y` conservan hasta 100 acciones, incluidos movimientos, cambios de tipo y cargas de presets. Durante cálculos y exportaciones se bloquean también los atajos de edición; **Volver a editar** detiene la reproducción y conserva el historial.
+
+**Datos del grafo** (`Ctrl+D`) permite revisar los IDs completos y editar coordenadas con teclado. Selecciona filas para alinear o distribuir nodos y pulsa **Aplicar**: todo el acomodo se guarda como una sola acción deshacible. Los IDs largos se abrevian visualmente sin modificar su identidad ni su zona de conexión.

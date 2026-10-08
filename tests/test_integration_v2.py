@@ -22,7 +22,12 @@ def test_playback_stops_on_every_context_change(window):
     window.speed.setValue(50)
     window.toggle_playback()
     assert window.play_timer.isActive()
-    QTest.qWait(180)
+    from PySide6.QtCore import QElapsedTimer
+
+    timer = QElapsedTimer()
+    timer.start()
+    while window.state_index == 0 and timer.elapsed() < 2000:
+        QTest.qWait(10)
     assert window.state_index > 0
     window.toggle_playback()
     assert not window.play_timer.isActive()
@@ -106,7 +111,7 @@ def test_matrix_restores_colors_and_arc_table_tracks_exact_connection(window):
     window.initialize()
     window.show_state(2)
     assert window.state_panel.arcs.item(0, 0).background().color().name() == "#fed7aa"
-    assert window.graph_view.edges["u", "v", 0].pen().color().name() == "#e69b00"
+    assert window.graph_view.edges["u", "v", 0].pen().color().name() == "#a66300"
 
 
 @pytest.mark.parametrize("algorithm", ["Dijkstra", "Bellman-Ford", "Floyd-Warshall"])

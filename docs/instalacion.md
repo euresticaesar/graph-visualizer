@@ -17,6 +17,8 @@ Para trabajar con datos aislados:
 uv run graph-visualizer --data-dir /tmp/mi-grafo --output-dir /tmp/mis-imagenes
 ```
 
-El primer arranque de un directorio vacío crea el ejemplo de 12 nodos. Desde un checkout se conserva `data/` como directorio predeterminado de trabajo y `output/` para PNG. Una instalación de la distribución usa `$XDG_DATA_HOME/graph-visualizer` o `~/.local/share/graph-visualizer`. Las variables `GRAPH_VISUALIZER_DATA_DIR` y `GRAPH_VISUALIZER_OUTPUT_DIR` también permiten elegir las rutas, independientemente del directorio desde el que se lance el comando.
+El primer arranque de un directorio vacío crea el ejemplo de 12 nodos. Desde un checkout se conserva `data/` como directorio predeterminado de trabajo y `output/` para PNG/PDF/SVG. Una instalación de la distribución usa `$XDG_DATA_HOME/graph-visualizer` o `~/.local/share/graph-visualizer`. Las variables `GRAPH_VISUALIZER_DATA_DIR` y `GRAPH_VISUALIZER_OUTPUT_DIR` también permiten elegir las rutas, independientemente del directorio desde el que se lance el comando.
 
 PySide6 necesita un entorno gráfico. Para pruebas sin pantalla se utiliza `QT_QPA_PLATFORM=offscreen`; consulta la [guía de desarrollo](desarrollo.md).
+
+La [exportación desde presets por terminal](exportaciones.md#exportar-desde-la-terminal) configura el modo offscreen automáticamente si no se ha elegido otro backend de Qt; no necesita abrir el espacio de trabajo.

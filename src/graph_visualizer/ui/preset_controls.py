@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from graph_visualizer.core.graph import graphs_equal
 from graph_visualizer.io.presets import Preset, new_preset_path, read_preset, write_preset
 from graph_visualizer.ui.node_combo_box import sorted_node_ids
 from graph_visualizer.ui.section_card import SectionCard
@@ -95,6 +94,7 @@ class PresetControls:
             settings.update(
                 algorithm=self.algorithm_combo.currentText(),
                 detail=self.detail_checkbox.isChecked(),
+                early_stop=self.early_stop.isChecked(),
             )
         return Preset(name, self.graph.copy(), self.graph_view.positions(), settings)
 
@@ -102,6 +102,9 @@ class PresetControls:
         snapshot = self.history[self.history_index]
         snapshot.preset_path = self.preset_path
         snapshot.preset_baseline = self.preset_baseline
+        snapshot.algorithm = self.algorithm_combo.currentText()
+        snapshot.detail = self.detail_checkbox.isChecked()
+        snapshot.early_stop = self.early_stop.isChecked()
 
     def preset_fingerprint(self):
         document = self.current_preset().document()
@@ -151,6 +154,8 @@ class PresetControls:
             self.load_preset_path(path)
 
     def load_preset_path(self, path):
+        if self.busy:
+            return False
         # Validate before prompting or altering the current graph.
         preset = read_preset(path)
         if self.preset_fingerprint() != self.preset_baseline:
@@ -168,6 +173,7 @@ class PresetControls:
                     return False
             elif dialog.clickedButton() != skip:
                 return False
+        self.remember_preset()
         self.reset()
         snapshot = self._snapshot(f"Cargar preset {preset.name}")
         snapshot.graph, snapshot.positions = preset.graph.copy(), dict(preset.positions)
@@ -178,16 +184,14 @@ class PresetControls:
             snapshot.start = ordered[0]
         if snapshot.target not in preset.graph:
             snapshot.target = ordered[-1]
+        snapshot.algorithm = preset.settings.get("algorithm", "Dijkstra")
+        snapshot.detail = preset.settings.get("detail", True)
+        snapshot.early_stop = preset.settings.get("early_stop", False)
+        snapshot.preset_path = path
+        unchanged = self._same_edit(self.history[self.history_index], snapshot)
         if not self._commit_edit(snapshot):
-            # Identical graph is a successful load; a failed write is not.
-            if (
-                not graphs_equal(self.graph, preset.graph)
-                or self.graph_view.positions() != preset.positions
-            ):
+            if not unchanged:
                 return False
-        if hasattr(self, "algorithm_combo"):
-            self.algorithm_combo.setCurrentText(preset.settings.get("algorithm", "Dijkstra"))
-            self.detail_checkbox.setChecked(preset.settings.get("detail", True) is True)
         self.preset_path = path
         self.preset_baseline = self.preset_fingerprint()
         self.remember_preset()

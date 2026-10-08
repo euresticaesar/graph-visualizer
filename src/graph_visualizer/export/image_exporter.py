@@ -22,11 +22,11 @@ from PySide6.QtGui import (
 from graph_visualizer.core.dijkstra import route_description
 from graph_visualizer.core.graph import ordered_arcs
 from graph_visualizer.core.models import format_number
-from graph_visualizer.ui.graph_view import GraphView
+from graph_visualizer.ui.graph_view import GraphView as GraphView
 from graph_visualizer.ui.state_panel import matrix_style
 
 ExportKind = Literal["current", "all", "combined", "final"]
-MAX_COMBINED_PIXELS = 24_000_000
+MAX_COMBINED_PIXELS = 100_000_000
 MAX_COMBINED_SIDE = 12000
 
 
@@ -262,169 +262,94 @@ def measure_state(view, graph, state, start, target, *, simple=False):
     )
 
 
-def render_state(
-    graph,
-    positions,
-    state,
-    start,
-    target,
-    index,
-    count,
-    *,
-    simple=False,
-    show_state_labels=True,
-    show_edge_ids=False,
-):
-    view = GraphView(graph, positions)
-    view.set_editable(False)
-    view.set_state_labels_visible(show_state_labels)
-    view.set_edge_ids_visible(show_edge_ids)
-    try:
-        view.apply_state(state, start, target, state.phase == "Resultado")
-        layout = measure_state(view, graph, state, start, target, simple=simple)
-        bounds, width, height = layout.bounds, layout.width, layout.height
-        graph_height, top = layout.graph_height, layout.top
-        tables, widths = layout.tables, layout.widths
-        detail_height, legend_height = layout.detail_height, layout.legend_height
-        flags = Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap
-        image = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
-        if image.isNull():
-            raise ValueError("No hay memoria suficiente para la imagen.")
-        image.fill(QColor("#f8fafc"))
-        painter = QPainter(image)
-        try:
-            painter.setRenderHints(
-                QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing
-            )
-            if not simple:
-                painter.setPen(QColor("#172b4d"))
-                painter.setFont(font(28, True))
-                painter.drawText(
-                    QRectF(32, 22, width - 64, 45),
-                    f"{state.algorithm} · {state.phase} · Iteración {state.iteration} "
-                    f"· Paso {index}/{count - 1} · Evento {state.step}",
-                )
-                painter.setFont(font(20))
-                painter.drawText(QRectF(32, 78, width - 64, detail_height), flags, layout.detail)
-            area = QRectF(
-                32 if not simple else 0, top, width - 64 if not simple else width, graph_height
-            )
-            scale = min(area.width() / bounds.width(), area.height() / bounds.height())
-            graph_area = QRectF(0, 0, bounds.width() * scale, bounds.height() * scale)
-            graph_area.moveCenter(area.center())
-            view.scene().render(painter, graph_area, bounds, Qt.AspectRatioMode.KeepAspectRatio)
-            x = max(32, (width - sum(sum(w) + 32 for w in widths) + 32) / 2)
-            for (title, headers, rows), columns in zip(tables, widths, strict=True):
-                draw_table(
-                    painter, x, top + graph_height, title, headers, rows, columns, state, graph
-                )
-                x += sum(columns) + 32
-            if not simple:
-                painter.setFont(font(20))
-                painter.setPen(QColor("#475569"))
-                painter.drawText(
-                    QRectF(32, height - legend_height - 16, width - 64, legend_height),
-                    flags,
-                    legend(state, graph),
-                )
-        finally:
-            painter.end()
-        return slide_image(image)
-    finally:
-        view.close()
-        view.deleteLater()
+def render_state(graph, positions, state, start, target, index, count, **options):
+    """Render one complete landscape slide for the selected state."""
+    from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
 
-
-def combined_capacity(width, height, remaining):
-    return max(
-        1,
-        min(4, MAX_COMBINED_PIXELS // (width * height), MAX_COMBINED_SIDE // height, remaining),
+    renderer = SlideRenderer(graph, positions, SlideOptions(**options))
+    image = QImage(
+        renderer.options.resolution,
+        renderer.options.resolution * 9 // 16,
+        QImage.Format.Format_ARGB32_Premultiplied,
     )
-
-
-def combined_image_count_job(
-    graph,
-    positions,
-    states,
-    start,
-    target,
-    *,
-    simple=False,
-    show_state_labels=True,
-    show_edge_ids=False,
-):
-    """Cooperative preview with the same sizes and page limits as the PNG exporter."""
-    view = GraphView(graph, positions)
-    view.set_editable(False)
-    view.set_state_labels_visible(show_state_labels)
-    view.set_edge_ids_visible(show_edge_ids)
-    size = None
-    capacity = used = pages = 0
+    image.fill(QColor(renderer.palette.canvas))
+    painter = QPainter(image)
     try:
-        for index, state in enumerate(states):
-            view.apply_state(state, start, target, state.phase == "Resultado")
-            measure_state(view, graph, state, start, target, simple=simple)
-            current_size = (1920, 1080)
-            if current_size != size or used == capacity:
-                pages += 1
-                size = current_size
-                used = 0
-                capacity = combined_capacity(*size, len(states) - index)
-            used += 1
-            yield index + 1, pages
-        return pages
+        painter.scale(renderer.options.resolution / 1920, renderer.options.resolution / 1920)
+        renderer.paint(painter, state, start, target, index, count)
     finally:
-        view.close()
-        view.deleteLater()
+        painter.end()
+        renderer.close()
+    return image
 
 
-def export_frames(graph, positions, states, start, target, index, kind, **options):
-    """Shared raster stream for preview and export; at most four states in memory."""
+def combined_capacity(width, height, remaining, group_size=4):
+    # A 16:9 montage reserves a full 2×2 canvas, including a two-page montage.
+    if width * height * 4 > MAX_COMBINED_PIXELS or max(width * 2, height * 2) > MAX_COMBINED_SIDE:
+        return 1
+    return max(1, min(group_size, remaining))
+
+
+def combined_image_count_job(graph, positions, states, start, target, **options):
+    """Count the fixed page plan once, without visiting every algorithm event."""
+    from graph_visualizer.export.slide_renderer import SlideOptions, page_count
+
+    if not states:
+        return 0
+    settings = SlideOptions(**options)
+    pages = len(states) * page_count(graph, states[0].algorithm, settings)
+    capacity = combined_capacity(
+        settings.resolution, settings.resolution * 9 // 16, pages, settings.group_size
+    )
+    count = math.ceil(pages / capacity)
+    yield len(states), count
+    return count
+
+
+def _page_groups(renderer, states, index, kind):
     if not states or not 0 <= index < len(states):
         raise ValueError("Inicia un algoritmo antes de exportar.")
     if kind not in {"current", "all", "combined", "final"}:
         raise ValueError(f"Tipo de exportación desconocido: {kind}.")
     indices = (
-        list(range(len(states)))
+        range(len(states))
         if kind in {"all", "combined"}
         else [len(states) - 1 if kind == "final" else index]
     )
-    combined = None
-    for progress, state_index in enumerate(indices):
-        image = render_state(
-            graph,
-            positions,
-            states[state_index],
-            start,
-            target,
-            state_index,
-            len(states),
-            **options,
+    total = sum(len(renderer.plan(states[i].algorithm)) for i in indices)
+    capacity = (
+        combined_capacity(
+            renderer.options.resolution,
+            renderer.options.resolution * 9 // 16,
+            total,
+            renderer.options.group_size,
         )
-        if kind == "combined":
-            if combined is None:
-                capacity = combined_capacity(1920, 1080, len(indices) - progress)
-                combined = QImage(
-                    1920 * min(2, capacity),
-                    1080 * math.ceil(capacity / 2),
-                    QImage.Format.Format_ARGB32_Premultiplied,
-                )
-                if combined.isNull():
-                    raise ValueError("Memoria insuficiente para la imagen conjunta.")
-                combined.fill(QColor("#f8fafc"))
-                used = 0
-            painter = QPainter(combined)
-            try:
-                painter.drawImage((used % 2) * 1920, (used // 2) * 1080, image)
-            finally:
-                painter.end()
-            used += 1
-            if used < capacity:
-                yield None, state_index, progress + 1, len(indices)
-                continue
-            image = slide_image(combined)
-            combined = None
-        yield image, state_index, progress + 1, len(indices)
+        if kind == "combined"
+        else 1
+    )
+    pending = []
+    progress = 0
+    for i in indices:
+        for part in range(len(renderer.plan(states[i].algorithm))):
+            pending.append((i, part))
+            progress += 1
+            if len(pending) == capacity or progress == total:
+                yield pending, progress, total
+                pending = []
+            else:
+                yield None, progress, total
+
+
+def export_frames(graph, positions, states, start, target, index, kind, **options):
+    from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
+
+    renderer = SlideRenderer(graph, positions, SlideOptions(**options))
+    try:
+        for refs, progress, total in _page_groups(renderer, states, index, kind):
+            image = renderer.image(refs, states, start, target) if refs else None
+            yield image, refs[-1][0] if refs else index, progress, total
+    finally:
+        renderer.close()
 
 
 def export_job(
@@ -438,63 +363,182 @@ def export_job(
     output_dir,
     *,
     output_format="png",
+    execution_settings=None,
     **options,
 ):
-    """Write one PDF or a PNG sequence, yielding after each rendered state."""
-    if output_format not in {"png", "pdf"}:
-        raise ValueError("Formato de exportación desconocido.")
-    frames = export_frames(graph, positions, states, start, target, index, kind, **options)
-    # Validate before creating any files.
-    first = next(frames)
-    from itertools import chain
+    """Publish a complete, reproducible export atomically; closing the job cancels it."""
+    import json
+    import shutil
+    import tempfile
+    from dataclasses import asdict
+    from importlib.metadata import version
 
-    run_dir = Path(output_dir) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
-    run_dir.mkdir(parents=True)
-    destination = run_dir
-    pdf = painter = None
-    page = 0
+    from PySide6.QtCore import QIODevice, QSaveFile, QSize
+    from PySide6.QtSvg import QSvgGenerator
+
+    from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
+    from graph_visualizer.io.presets import Preset
+
+    if output_format not in {"png", "pdf", "svg"}:
+        raise ValueError("Formato de exportación desconocido.")
+    if not states or not 0 <= index < len(states):
+        raise ValueError("Inicia un algoritmo antes de exportar.")
+    settings = SlideOptions(**options)
+    renderer = SlideRenderer(graph, positions, settings)
+    groups = _page_groups(renderer, states, index, kind)
+    root = Path(output_dir)
+    run_dir = None
+    painter = device = None
     completed = False
+    records = []
+    event_records = {}
+    pdf = None
     try:
+        first = next(groups)
+        root.mkdir(parents=True, exist_ok=True)
+        run_dir = Path(tempfile.mkdtemp(prefix=".exportando_", dir=root))
+        final_dir = root / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
+        from itertools import chain
+
+        page = 0
         if output_format == "pdf":
-            destination = run_dir / "diapositivas.pdf"
-            pdf = QPdfWriter(str(destination))
+            device = QSaveFile(str(run_dir / "diapositivas.pdf"))
+            if not device.open(QIODevice.OpenModeFlag.WriteOnly):
+                raise OSError(device.errorString())
+            pdf = QPdfWriter(device)
             pdf.setResolution(96)
-            pdf.setPageSize(QPageSize(QSizeF(1440, 810), QPageSize.Unit.Point))
             pdf.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Point)
-            pdf.setTitle(f"{states[0].algorithm} · {start} → {target}")
-            painter = QPainter(pdf)
-            if not painter.isActive():
-                raise OSError(f"No se pudo crear {destination}.")
-        for image, state_index, progress, total in chain([first], frames):
-            if image is not None:
-                if painter is not None:
-                    if page and not pdf.newPage():
-                        raise OSError("No se pudo crear la página PDF.")
-                    painter.drawImage(QRectF(0, 0, pdf.width(), pdf.height()), image)
-                else:
-                    name = (
-                        f"conjunta_{page + 1:04d}.png"
-                        if kind == "combined"
-                        else f"paso_{state_index:06d}.png"
-                        if kind == "all"
-                        else "resultado_final.png"
-                        if kind == "final"
-                        else f"paso_actual_{index:06d}.png"
-                    )
-                    path = run_dir / name
-                    save_image(image, path)
-                    if kind in {"current", "final"}:
-                        destination = path
+            pdf.setTitle(settings.title or f"{states[0].algorithm} · {start} → {target}")
+        for refs, progress, total in chain([first], groups):
+            if refs:
                 page += 1
+                columns = 2 if len(refs) > 1 else 1
+                width = settings.resolution * columns
+                height = settings.resolution * 9 // 16 * columns
+                state_index, _ = refs[0]
+                name = (
+                    f"conjunta_{page:04d}"
+                    if kind == "combined"
+                    else f"paso_{state_index:06d}"
+                    if kind == "all"
+                    else "resultado_final"
+                    if kind == "final"
+                    else f"paso_actual_{state_index:06d}"
+                )
+                if output_format == "pdf":
+                    pdf.setPageSize(
+                        QPageSize(QSizeF(width * 0.75, height * 0.75), QPageSize.Unit.Point)
+                    )
+                    if painter is None:
+                        painter = QPainter(pdf)
+                        if not painter.isActive():
+                            raise OSError("No se pudo iniciar el documento PDF.")
+                    elif not pdf.newPage():
+                        raise OSError("No se pudo crear la página PDF.")
+                    renderer.paint_group(painter, refs, states, start, target)
+                    file_name = "diapositivas.pdf"
+                elif output_format == "svg":
+                    file_name = name + ".svg"
+                    svg_file = QSaveFile(str(run_dir / file_name))
+                    if not svg_file.open(QIODevice.OpenModeFlag.WriteOnly):
+                        raise OSError(svg_file.errorString())
+                    generator = QSvgGenerator()
+                    generator.setOutputDevice(svg_file)
+                    generator.setSize(QSize(width, height))
+                    generator.setViewBox(QRectF(0, 0, width, height))
+                    generator.setTitle(settings.title or states[state_index].algorithm)
+                    svg_painter = QPainter(generator)
+                    try:
+                        if not svg_painter.isActive():
+                            raise OSError("No se pudo iniciar el documento SVG.")
+                        renderer.paint_group(svg_painter, refs, states, start, target)
+                    finally:
+                        if svg_painter.isActive() and not svg_painter.end():
+                            raise OSError("No se pudo finalizar el SVG.")
+                    if not svg_file.commit():
+                        raise OSError(svg_file.errorString())
+                else:
+                    file_name = name + ".png"
+                    save_image(renderer.image(refs, states, start, target), run_dir / file_name)
+                records.append(
+                    {
+                        "file": file_name,
+                        "page": page,
+                        "size": [width, height],
+                        "states": [
+                            {
+                                "index": i,
+                                "event": states[i].step,
+                                "part": j + 1,
+                                "parts": len(renderer.plan(states[i].algorithm)),
+                            }
+                            for i, j in refs
+                        ],
+                    }
+                )
+                for i, _ in refs:
+                    state = states[i]
+                    if state.step not in event_records:
+                        event_records[state.step] = {
+                            "event": state.step,
+                            "phase": state.phase,
+                            "iteration": state.iteration,
+                            "explanation": state.explanation,
+                            "route": route_description(state, start, target),
+                        }
             yield progress, total
+        if painter is not None:
+            if not painter.end():
+                raise OSError("No se pudo finalizar el PDF.")
+            painter = None
+            if not device.commit():
+                raise OSError(device.errorString())
+        snapshot = Preset(
+            settings.title or "Grafo exportado",
+            graph,
+            positions,
+            {
+                "algorithm": states[0].algorithm,
+                "start": start,
+                "target": target,
+                "detail": len(states) == len(getattr(states, "events", states)),
+            },
+        ).document()
+        if execution_settings:
+            snapshot["settings"].update(execution_settings)
+        manifest = {
+            "version": 1,
+            "application_version": version("graph-visualizer"),
+            "status": "complete",
+            "kind": kind,
+            "format": output_format,
+            "options": asdict(settings),
+            "labels": renderer.aliases,
+            "events": list(event_records.values()),
+            "output_count": len(records),
+            "outputs": records,
+        }
+        for filename, document in (("manifest.json", manifest), ("grafo.json", snapshot)):
+            (run_dir / filename).write_text(
+                json.dumps(document, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+                encoding="utf-8",
+            )
+        run_dir.rename(final_dir)
         completed = True
-        return destination
+        if output_format == "pdf":
+            return final_dir / "diapositivas.pdf"
+        if kind in {"current", "final"} and len(records) == 1:
+            return final_dir / records[0]["file"]
+        return final_dir
     finally:
-        frames.close()
+        groups.close()
         if painter is not None:
             painter.end()
-        if output_format == "pdf" and not completed:
-            destination.unlink(missing_ok=True)
+        if device is not None and not completed:
+            device.cancelWriting()
+        renderer.close()
+        if run_dir is not None and not completed:
+            shutil.rmtree(run_dir, ignore_errors=True)
 
 
 def export_graph(*args, **kwargs) -> Path:
@@ -507,7 +551,7 @@ def export_graph(*args, **kwargs) -> Path:
 
 
 def slide_image(image):
-    """Fit content without cropping into a full-bleed 1920×1080 slide."""
+    """Compatibility helper: fit a legacy raster into an HD slide."""
     if image.width() == 1920 and image.height() == 1080:
         return image
     slide = QImage(1920, 1080, QImage.Format.Format_ARGB32_Premultiplied)

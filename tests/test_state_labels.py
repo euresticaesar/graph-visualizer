@@ -6,7 +6,11 @@ from graph_visualizer.ui.node_item import NodeItem
 
 
 def data_contents(window):
-    return {path.name: path.read_bytes() for path in window.data_dir.iterdir() if path.is_file()}
+    return {
+        path.name: path.read_bytes()
+        for path in window.data_dir.iterdir()
+        if path.is_file() and path.name != "preferences.json"
+    }
 
 
 def assert_roles_only(view, start, target):

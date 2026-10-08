@@ -6,9 +6,9 @@ La pestaña **Presets** agrupa la biblioteca, el guardado del trabajo, la organi
 
 Se incluyen los ejemplos de 12 y 30 nodos y los grafos de las referencias de Bellman-Ford (cinco vértices dirigidos, origen z) y Floyd-Warshall (ocho vértices no dirigidos).
 
-El autoguardado del trabajo es independiente del preset. Editar un preset cargado **no** modifica su archivo: usa **Actualizar preset**. Al cargar otro con cambios pendientes puedes guardar y continuar, continuar sin guardar en preset o cancelar. El guardado actualiza el preset personal asociado; si no existe uno, solicita un nombre nuevo. Sin cambios no hay aviso. La carga se valida antes de sustituir el trabajo; los fallos conservan el grafo anterior. Cargar reinicia la ejecución y es deshacible.
+El autoguardado del trabajo es independiente del preset. Editar un preset cargado **no** modifica su archivo: usa **Actualizar preset**. Al cargar otro con cambios pendientes puedes guardar y continuar, continuar sin guardar en preset o cancelar. El guardado actualiza el preset personal asociado; si no existe uno, solicita un nombre nuevo. Sin cambios no hay aviso. La carga se valida antes de sustituir el trabajo; los fallos conservan el grafo anterior. Cargar reinicia la ejecución y es deshacible, incluidos sus ajustes de algoritmo, detalle y parada temprana.
 
-Los presets personales están en `data/presets/` (excluido de Git); los ejemplos versionados están en [`src/graph_visualizer/examples/`](../src/graph_visualizer/examples/). Se guardan nombre, tipo, nodos, conexiones con clave/peso, posiciones y opciones de algoritmo/origen/destino/detalle. No se guardan estados calculados, temporizadores ni historial.
+Los presets personales están en `data/presets/` (excluido de Git); los ejemplos versionados están en [`src/graph_visualizer/examples/`](../src/graph_visualizer/examples/). Se guardan nombre, tipo, nodos, conexiones con clave/peso, posiciones y opciones de algoritmo/origen/destino/detalle y parada temprana de Bellman-Ford (`early_stop`). No se guardan estados calculados, temporizadores ni historial.
 
 ## Formato JSON v1
 
@@ -20,7 +20,7 @@ Los presets personales están en `data/presets/` (excluido de Git); los ejemplos
   "nodes": ["A", "B"],
   "edges": [{"source": "A", "target": "B", "id": 0, "weight": -2}],
   "positions": {"A": [100, 100], "B": [350, 100]},
-  "settings": {"algorithm": "Bellman-Ford", "start": "A", "target": "B", "detail": true}
+  "settings": {"algorithm": "Bellman-Ford", "start": "A", "target": "B", "detail": true, "early_stop": false}
 }
 ```
 

@@ -4,10 +4,18 @@ import math
 import networkx as nx
 
 from graph_visualizer.core.graph import EdgeId, edge_id, ordered_arcs, validate_graph
-from graph_visualizer.core.models import AlgorithmState, Comparison, StateView, tree_edges
+from graph_visualizer.core.models import (
+    AlgorithmCancelled,
+    AlgorithmState,
+    Comparison,
+    StateView,
+    tree_edges,
+)
 
 
-def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False, _heuristics=None):
+def dijkstra_steps(
+    graph: nx.Graph, start: str, target: str, *, detailed=False, _heuristics=None, _cancelled=None
+):
     validate_graph(graph)
     if start not in graph or target not in graph:
         raise ValueError("Selecciona origen y destino existentes.")
@@ -24,6 +32,8 @@ def dijkstra_steps(graph: nx.Graph, start: str, target: str, *, detailed=False, 
     events = []
 
     def emit(current=None, **kw):
+        if _cancelled and _cancelled():
+            raise AlgorithmCancelled
         events.append(
             AlgorithmState(
                 len(events),

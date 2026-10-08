@@ -8,6 +8,7 @@ import math
 
 from graph_visualizer.core.graph import ordered_arcs, validate_graph
 from graph_visualizer.core.models import (
+    AlgorithmCancelled,
     AlgorithmState,
     Comparison,
     RouteTree,
@@ -21,7 +22,7 @@ def replace_cell(matrix, i, j, value):
     return matrix[:i] + (row,) + matrix[i + 1 :]
 
 
-def floyd_warshall_steps(graph, *, detailed=False):
+def floyd_warshall_steps(graph, *, detailed=False, _cancelled=None):
     validate_graph(graph)
     nodes = tuple(sorted(graph))
     n = len(nodes)
@@ -39,6 +40,8 @@ def floyd_warshall_steps(graph, *, detailed=False):
     changed = frozenset()
 
     def emit(**kw):
+        if _cancelled and _cancelled():
+            raise AlgorithmCancelled
         events.append(
             AlgorithmState(
                 len(events),

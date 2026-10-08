@@ -34,7 +34,9 @@ def test_pdf_pages_and_preview(window, kind):
     assert document.pageCount() == len(frames)
     assert document.pagePointSize(0).width() / document.pagePointSize(0).height() == 16 / 9
     assert not document.render(0, QSize(1920, 1080)).isNull()
-    assert all(image.size() == QSize(1920, 1080) for image in frames)
+    assert all(image.width() / image.height() == 16 / 9 for image in frames)
+    assert all(image.width() in {1920, 3840} for image in frames)
+    assert frames[0].width() == (3840 if kind == "combined" else 1920)
     assert not list(path.parent.glob("*.png"))
     document.close()
 

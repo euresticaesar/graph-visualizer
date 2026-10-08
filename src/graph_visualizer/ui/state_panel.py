@@ -14,11 +14,13 @@ from PySide6.QtWidgets import (
 from graph_visualizer.core.graph import ordered_arcs
 from graph_visualizer.core.models import format_number
 from graph_visualizer.ui.section_card import SectionCard
+from graph_visualizer.ui.themes import matrix_colors, palette_for, row_color
 
 
 class StatePanel(QWidget):
     def __init__(self):
         super().__init__()
+        self.palette = palette_for()
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)
         self.hint = QLabel()
@@ -62,8 +64,8 @@ class StatePanel(QWidget):
             for row, values in enumerate(rows):
                 for col, value in enumerate(values):
                     item = QTableWidgetItem(value)
-                    if values[0] == state.current_node:
-                        item.setBackground(QColor("#fed7aa"))
+                    item.setBackground(QColor(row_color(state, "astar", values, self.palette)))
+                    item.setForeground(QColor(self.palette.text))
                     self.table.setItem(row, col, item)
             self.table.resizeColumnsToContents()
             return
@@ -86,10 +88,8 @@ class StatePanel(QWidget):
                 [node, format_number(state.distances[node]), state.predecessors[node] or "—"]
             ):
                 item = QTableWidgetItem(value)
-                if node in state.affected:
-                    item.setBackground(QColor("#fecaca"))
-                elif node in state.updated_nodes:
-                    item.setBackground(QColor("#fef08a"))
+                item.setBackground(QColor(row_color(state, "distances", [node], self.palette)))
+                item.setForeground(QColor(self.palette.text))
                 self.table.setItem(row, col, item)
         arcs = ordered_arcs(graph)
         self.arcs.setColumnCount(4)
@@ -98,8 +98,8 @@ class StatePanel(QWidget):
         for row, (u, v, key, weight) in enumerate(arcs):
             for col, value in enumerate([u, v, str(key), format_number(weight)]):
                 item = QTableWidgetItem(value)
-                if state.current_edge == (u, v, key):
-                    item.setBackground(QColor("#fed7aa"))
+                item.setBackground(QColor(row_color(state, "arcs", [u, v, str(key)], self.palette)))
+                item.setForeground(QColor(self.palette.text))
                 self.arcs.setItem(row, col, item)
             if state.current_edge == (u, v, key):
                 self.arcs.scrollToItem(self.arcs.item(row, 0))
@@ -108,36 +108,35 @@ class StatePanel(QWidget):
 
 
 class MatrixDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.palette = palette_for()
+
     def paint(self, painter, option, index):
         super().paint(painter, option, index)
         if index.data(Qt.ItemDataRole.UserRole):
             painter.save()
-            painter.setPen(QPen(QColor("#15803d"), 2))
+            painter.setPen(QPen(QColor(self.palette.k_border), 2))
             painter.drawRect(option.rect.adjusted(1, 1, -2, -2))
             painter.restore()
         if index.data(Qt.ItemDataRole.UserRole + 1):
             painter.save()
-            painter.setPen(QPen(QColor("#7c3aed"), 3))
+            painter.setPen(QPen(QColor(self.palette.active), 3))
             painter.drawRect(option.rect.adjusted(4, 4, -5, -5))
             painter.restore()
 
 
-def matrix_style(state, row, col):
-    green = state.k is not None and (row == state.k or col == state.k)
-    yellow = (row, col) in state.changed
-    return (
-        "#fef08a" if yellow else "#bbf7d0" if green else "#ffffff",
-        green,
-        state.cell == (row, col),
-    )
+def matrix_style(state, row, col, palette=None):
+    return matrix_colors(state, row, col, palette)
 
 
 class MatrixPanel(QWidget):
     def __init__(self):
         super().__init__()
+        self.palette = palette_for()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        hint = QLabel("Verde: fila / columna k · Amarillo: mejora · Violeta: comparación")
+        hint = QLabel("Fila / columna k · Mejora · Comparación · Rojo: sin mínimo finito")
         hint.setObjectName("hint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -169,12 +168,15 @@ class MatrixPanel(QWidget):
         if state.algorithm != "Floyd-Warshall":
             return
         for table, matrix in zip(self.tables, [state.matrix, state.intermediates], strict=True):
+            table.itemDelegate().palette = self.palette
+            table.horizontalHeader().palette = self.palette
+            table.verticalHeader().palette = self.palette
             table.setRowCount(len(state.nodes))
             table.setColumnCount(len(state.nodes))
             table.setHorizontalHeaderLabels(state.nodes)
             table.setVerticalHeaderLabels(state.nodes)
             for index in range(len(state.nodes)):
-                color = QColor("#bbf7d0" if index == state.k else "#e2e8f0")
+                color = QColor(self.palette.k_fill if index == state.k else self.palette.header)
                 table.horizontalHeaderItem(index).setBackground(color)
                 table.verticalHeaderItem(index).setBackground(color)
             for i, row in enumerate(matrix):
@@ -186,8 +188,9 @@ class MatrixPanel(QWidget):
                         if value is not None
                         else "—"
                     )
-                    background, green, active = matrix_style(state, i, j)
+                    background, green, active = matrix_style(state, i, j, self.palette)
                     item.setBackground(QColor(background))
+                    item.setForeground(QColor(self.palette.text))
                     item.setData(Qt.ItemDataRole.UserRole, green)
                     item.setData(Qt.ItemDataRole.UserRole + 1, active)
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -207,12 +210,16 @@ class MatrixHeader(QHeaderView):
         color = self.model().headerData(
             logical_index, self.orientation(), Qt.ItemDataRole.BackgroundRole
         )
-        painter.fillRect(rect, color if color is not None else QColor("#e2e8f0"))
-        painter.setPen(QColor("#cbd5e1"))
+        painter.fillRect(rect, color if color is not None else QColor(self.palette.header))
+        painter.setPen(QColor(self.palette.border))
         painter.drawRect(rect.adjusted(0, 0, -1, -1))
-        painter.setPen(QColor("#172b4d"))
+        painter.setPen(QColor(self.palette.text))
         text = self.model().headerData(
             logical_index, self.orientation(), Qt.ItemDataRole.DisplayRole
         )
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(text))
         painter.restore()
+
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+        self.palette = palette_for()

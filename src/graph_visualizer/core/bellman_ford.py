@@ -1,10 +1,10 @@
 import math
 
 from graph_visualizer.core.graph import ordered_arcs, validate_graph
-from graph_visualizer.core.models import AlgorithmState, Comparison, StateView
+from graph_visualizer.core.models import AlgorithmCancelled, AlgorithmState, Comparison, StateView
 
 
-def bellman_ford_steps(graph, start, *, early_stop=False):
+def bellman_ford_steps(graph, start, *, early_stop=False, _cancelled=None):
     validate_graph(graph)
     if start not in graph:
         raise ValueError("Selecciona un origen existente.")
@@ -16,6 +16,8 @@ def bellman_ford_steps(graph, start, *, early_stop=False):
     events = []
 
     def emit(**kw):
+        if _cancelled and _cancelled():
+            raise AlgorithmCancelled
         events.append(
             AlgorithmState(
                 len(events),

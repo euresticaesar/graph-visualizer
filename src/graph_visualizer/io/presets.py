@@ -90,10 +90,13 @@ def parse_preset(data) -> Preset:
                 settings[endpoint] = normalize_id(settings[endpoint])
                 if settings[endpoint] not in graph:
                     raise ValueError("El origen/destino del preset debe existir.")
-        if "detail" in settings and type(settings["detail"]) is not bool:
-            raise ValueError("El detalle debe ser booleano.")
+        for key in ("detail", "early_stop"):
+            if key in settings and type(settings[key]) is not bool:
+                raise ValueError(f"{key} debe ser booleano.")
         settings = {
-            k: v for k, v in settings.items() if k in {"algorithm", "start", "target", "detail"}
+            k: v
+            for k, v in settings.items()
+            if k in {"algorithm", "start", "target", "detail", "early_stop"}
         }
         return Preset(data["name"].strip(), graph, positions, settings)
     except (KeyError, TypeError, AttributeError, OverflowError) as error:

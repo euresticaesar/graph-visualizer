@@ -11,7 +11,8 @@ from graph_visualizer.core.graph import EdgeId, edge_id, edges_with_keys
 from graph_visualizer.core.models import DijkstraState
 from graph_visualizer.io.layout_io import PositionMap
 from graph_visualizer.ui.edge_item import EdgeItem
-from graph_visualizer.ui.node_item import NodeItem
+from graph_visualizer.ui.node_item import NodeItem, node_aliases
+from graph_visualizer.ui.themes import palette_for
 
 
 class GraphView(QGraphicsView):
@@ -20,10 +21,19 @@ class GraphView(QGraphicsView):
     node_creation_requested = Signal(object)
     edge_edit_requested = Signal(object, object, object)
     connection_requested = Signal(object, object)
+    navigation_requested = Signal(int)
+    playback_requested = Signal()
 
-    def __init__(self, graph: nx.Graph, positions: PositionMap, parent=None):
+    def __init__(
+        self, graph: nx.Graph, positions: PositionMap, parent=None, *, palette=None, font_scale=1.0
+    ):
         super().__init__(parent)
         self.graph = graph
+        self.palette = palette or palette_for()
+        self.font_scale = font_scale
+        self.auto_fit = False
+        self.last_state = (None, "", "", False)
+        self.setAccessibleName("Grafo del recorrido")
         self.editable = True
         self.show_state_labels = True
         self.show_edge_ids = False
@@ -33,7 +43,7 @@ class GraphView(QGraphicsView):
         self.press_position = None
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
-        self.setBackgroundBrush(QColor("#f8fafc"))
+        self.setBackgroundBrush(QColor(self.palette.canvas))
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -54,8 +64,10 @@ class GraphView(QGraphicsView):
             self.edges.clear()
             self.nodes.clear()
             self.scene().clear()
+            aliases = node_aliases(graph, self.font_scale)
+            self.aliases = aliases
             for node in sorted(graph):
-                item = NodeItem(node)
+                item = NodeItem(node, self.palette, self.font_scale, aliases[node])
                 item.set_state_labels_visible(self.show_state_labels)
                 self.scene().addItem(item)
                 item.setPos(*positions[node])
@@ -83,6 +95,14 @@ class GraphView(QGraphicsView):
                     self.scene().addItem(edge)
                     self.edges[edge_id(source, target, key, graph.is_directed())] = edge
         self._update_scene_rect()
+
+    def set_appearance(self, palette, font_scale=1.0):
+        positions = self.positions()
+        self.palette, self.font_scale = palette, font_scale
+        self.setBackgroundBrush(QColor(palette.canvas))
+        self.set_graph(self.graph, positions)
+        self.set_editable(self.editable)
+        self.apply_state(*self.last_state)
 
     def _selection_changed(self) -> None:
         selected = self.scene().selectedItems()
@@ -125,6 +145,7 @@ class GraphView(QGraphicsView):
     def apply_state(
         self, state: DijkstraState | None, start: str, target: str, final: bool = False
     ) -> None:
+        self.last_state = (state, start, target, final)
         path_edges = (
             set(reconstruct_edge_path(state, start, target))
             if state is not None and (final or state.algorithm == "Floyd-Warshall")
@@ -145,37 +166,45 @@ class GraphView(QGraphicsView):
                 node == start,
                 node == target,
                 state is not None and node in state.updated_nodes,
+                predecessor_label=self.aliases.get(state.predecessors.get(node)) if state else None,
             )
             if state and state.algorithm not in {"Dijkstra", "A*"}:
-                item.state_caption = "sin mínimo finito" if node in state.affected else ""
+                affected = node in state.affected
                 if state.algorithm == "Floyd-Warshall":
                     from graph_visualizer.core.models import format_number
 
                     distance = state.matrix[state.nodes.index(start)][state.nodes.index(node)]
+                    affected = distance == -math.inf
                     item.label.setText(format_number(distance))
-                    item.label.setPos(-item.label.boundingRect().width() / 2, 35)
+                    item.label.setPos(
+                        -item.label.boundingRect().width() / 2, item.node_height / 2 + 9
+                    )
+                item.state_caption = "sin mínimo finito" if affected else ""
                 item._update_caption()
-                if node in state.affected:
-                    item.fill = QColor("#fecaca")
+                if affected:
+                    item.fill = QColor(self.palette.error_fill)
         for pair, edge in self.edges.items():
             edge.set_highlighted(pair in path_edges)
             if state and pair in {edge_id(*e, self.graph.is_directed()) for e in state.cycle}:
-                edge.setPen(QPen(QColor("#dc2626"), 5))
+                edge.setPen(QPen(QColor(self.palette.error), 5))
             if (
                 state
                 and state.current_edge
                 and pair == edge_id(*state.current_edge, self.graph.is_directed())
             ):
-                edge.setPen(QPen(QColor("#e69b00"), 5))
+                edge.setPen(QPen(QColor(self.palette.comparison), 5))
+                edge.label.setBrush(QColor(self.palette.comparison))
         self._update_scene_rect()
 
     def fit_graph(self) -> None:
+        self.auto_fit = True
         self.fitInView(
             self.scene().itemsBoundingRect().adjusted(-45, -45, 45, 45),
             Qt.AspectRatioMode.KeepAspectRatio,
         )
 
     def wheelEvent(self, event) -> None:
+        self.auto_fit = False
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         scale = self.transform().m11() * factor
         if 0.15 <= scale <= 4:
@@ -216,9 +245,9 @@ class GraphView(QGraphicsView):
             self.press_position = point
             if isinstance(item, NodeItem):
                 local = item.mapFromScene(self.mapToScene(point))
-                if 19 <= math.hypot(local.x(), local.y()) <= 34:
+                if item.connection_zone(local):
                     self.connection_source = item.node_id
-                    pen = QPen(QColor("#087e8b"), 2, Qt.PenStyle.DashLine)
+                    pen = QPen(QColor(self.palette.accent), 2, Qt.PenStyle.DashLine)
                     self.connection_preview = self.scene().addPath(QPainterPath(item.pos()), pen)
                     self.connection_preview.setZValue(-2)
                     self.connection_preview.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -254,7 +283,7 @@ class GraphView(QGraphicsView):
             event.accept()
             if isinstance(item, NodeItem) and item.node_id != source:
                 local = item.mapFromScene(self.mapToScene(point))
-                if math.hypot(local.x(), local.y()) <= 34:
+                if item.shape().contains(local):
                     self.connection_requested.emit(source, item.node_id)
             return
         if event.button() == Qt.MouseButton.LeftButton and self.pressed_edge is not None:
@@ -276,6 +305,14 @@ class GraphView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event) -> None:
+        if not self.editable and event.key() in {Qt.Key.Key_Left, Qt.Key.Key_Right}:
+            self.navigation_requested.emit(-1 if event.key() == Qt.Key.Key_Left else 1)
+            event.accept()
+            return
+        if not self.editable and event.key() == Qt.Key.Key_Space:
+            self.playback_requested.emit()
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_Escape:
             self.cancel_gesture()
             event.accept()
