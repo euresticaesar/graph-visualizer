@@ -12,9 +12,13 @@ En **Exportar** elige PNG, PDF vectorial o SVG vectorial. Los tres formatos comp
 
 Las listas se redistribuyen en columnas con encabezados y rangos de filas **dentro de la misma imagen**. Floyd-Warshall conserva completas sus matrices de distancias y recorridos, con todos los índices y resaltados originales. Bellman-Ford conserva todos los arcos ordenados, incluidos los dos sentidos de una conexión no dirigida. El compositor elige una distribución horizontal o vertical de los paneles y ajusta la escala para evitar solapamientos. La cámara del grafo y la composición permanecen fijas entre los pasos de una misma ejecución.
 
+En **Composición** puedes conservar **Adaptativa** o forzar **Grafo a la izquierda** / **Grafo arriba**. **Espacio del grafo** reserva entre 20 % y 65 % del ancho en la composición lateral o del alto en la superior; solo se activa en las composiciones manuales. La escala de las tablas se ajusta al espacio restante y conserva todo su contenido. **Atenuar conexiones fuera de la ruta** reduce su opacidad sin ocultarlas; **Ampliar comparación activa en la diapositiva** añade un foco con la comparación, celda mejorada o ruta del estado. El foco complementa las matrices y listas completas.
+
 Los IDs largos reciben etiquetas abreviadas distintas entre sí. Las tablas usan las mismas etiquetas y una referencia en la misma diapositiva conserva los IDs completos. El título, la explicación, la ruta y los valores de las celdas ajustan su tipografía para conservar el texto completo sin puntos suspensivos adicionales. El manifiesto también registra la explicación original y los IDs completos.
 
-La escala solicitada es una preferencia: al aumentar la cantidad de datos, el texto debe reducirse para mantener el paso completo en una imagen. No se garantiza un tamaño mínimo de letra para grafos arbitrariamente grandes. Para matrices densas, usa **4K**, revisa la vista previa al **100 %** y conserva el PDF/SVG vectorial para ampliar los detalles.
+La escala solicitada es una preferencia: al aumentar la cantidad de datos, el texto debe reducirse para mantener el paso completo en una imagen. No se garantiza un tamaño mínimo de letra para grafos arbitrariamente grandes. Para matrices densas, revisa la vista previa al **100 %** y conserva el PDF/SVG vectorial para ampliar los detalles. **4K** aporta más píxeles para inspección y zoom; no aumenta por sí solo el tamaño relativo de la letra al proyectar toda la diapositiva en la misma pantalla.
+
+El diagnóstico de la vista previa informa el tamaño mínimo real de fuente en píxeles de salida para grafo, tablas y textos, después del ajuste. Advierte si una categoría queda por debajo de 12 px. **Usar 4K** cambia la resolución de la muestra y de la exportación; **Ajustar composición** vuelve a Exportar con las opciones avanzadas abiertas. El diagnóstico se refiere a las páginas de la muestra visible, no es una garantía de lectura a distancia ni un análisis de toda la ejecución.
 
 **Simple** muestra solo el grafo, pesos, flechas, IDs y resaltados, sin tablas ni explicaciones. Los dos estilos respetan **IDs de conexiones**; las tablas didácticas siempre conservan la identidad de los arcos. Los valores pequeños usan notación científica para conservar su signo. `∞` significa sin ruta, `−∞` sin mínimo finito y `—` sin predecesor.
 
@@ -33,7 +37,9 @@ La escala solicitada es una preferencia: al aumentar la cantidad de datos, el te
 
 Para pasos separados o conjuntas puedes seleccionar todos, un rango inclusivo, solo mejoras o pasos marcados. El rango corresponde al detalle elegido para exportar; las marcas identifican el evento original y sobreviven al cambio de detalle en la navegación. Los botones indican la cantidad real de archivos o páginas; cada estado tiene una sola diapositiva.
 
-La vista previa está activada por defecto. Permite saltar a cualquier página, ir a la última y revisar a **50 %** o **100 %**, además de encajar al ancho. Renderiza hasta dos páginas cercanas a la posición elegida, sin generar toda la ejecución ni alterar el lienzo. Cancelar o cerrar la vista previa vuelve sin crear archivos. **Copiar imagen** copia la diapositiva completa del paso visible usando las opciones de exportación actuales.
+La vista previa está activada por defecto. Permite saltar a cualquier página, ir a la última y revisar a **50 %** o **100 %**. **Encajar** ajusta al ancho disponible, sin ampliar por encima de la resolución original: puede requerir desplazamiento vertical para consultar el título y la leyenda. Cada imagen conserva su altura íntegra en los tres modos y se centra horizontalmente. El ancho de la barra vertical se reserva para que su aparición no produzca un bucle de reajustes. Renderiza hasta dos páginas cercanas a la posición elegida, sin generar toda la ejecución ni alterar el lienzo. Cancelar o cerrar la vista previa vuelve sin crear archivos. **Copiar imagen** copia la diapositiva completa del paso visible usando las opciones de exportación actuales.
+
+![Vista previa completa de Bellman-Ford, con explicación, ruta y final de los 126 arcos](images/vista-previa-completa.png)
 
 ## Archivos y cancelación
 
@@ -57,4 +63,4 @@ uv run graph-visualizer \
   --output-dir /tmp/material-grafo
 ```
 
-Este modo no abre la ventana ni modifica los datos de trabajo. Usa el algoritmo y ajustes del preset; `--detail summary` o `--detail detailed` modifica el detalle de exportación. También admite `--kind all|combined|final`, `--format png|pdf|svg`, `--layout balanced|graph|tables`, `--font-scale` y `--simple`. Imprime la ruta resultante y devuelve un código distinto de cero si falla.
+Este modo no abre la ventana ni modifica los datos de trabajo. Usa el algoritmo y ajustes del preset; `--detail summary` o `--detail detailed` modifica el detalle de exportación. También admite `--kind all|combined|final`, `--format png|pdf|svg`, `--layout balanced|graph|tables`, `--font-scale` y `--simple`. `--composition auto|side|top` selecciona la composición; `--graph-fraction 0.35` reserva 35 % al grafo en una composición manual. `--dim-unrelated` activa la atenuación y `--focus` añade el foco. Por ejemplo, añade `--composition top --graph-fraction 0.35 --focus` al comando anterior. Imprime la ruta resultante y devuelve un código distinto de cero si falla.

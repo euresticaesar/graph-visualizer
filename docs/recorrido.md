@@ -10,6 +10,8 @@ La reproducción se detiene al llegar al final, cambiar de algoritmo o detalle, 
 
 A* muestra las prioridades g, h y f; Bellman-Ford muestra sus tablas y Floyd-Warshall sus matrices en un **panel de resultados** que aparece al iniciar el algoritmo. La distribución predeterminada coloca el panel a la derecha; **Personalizar** permite ponerlo debajo del grafo. Puedes ajustar el ancho arrastrando su separador con el grafo y repartir la altura entre las dos tablas o matrices. El panel se oculta al volver a editar o usar Dijkstra. Las tablas y matrices tienen desplazamiento y encabezados. Con grafos grandes, usa zoom, desplazamiento y los separadores para revisar los detalles.
 
+En el layout inferior, una ventana de menos de 820 px de alto activa el modo compacto: oculta hints, reduce mínimos de tablas y reserva espacio al grafo. Al ampliar recupera la densidad normal. Los separadores se ajustan para evitar solapamientos y mantienen las proporciones manuales cuando caben. Las matrices permiten seleccionar una celda y navegar con las flechas; su descripción accesible identifica fila, columna, comparación y mejora. Los cambios de estado, errores y progreso de exportación se anuncian mediante el API de accesibilidad nativo de Qt.
+
 ## Elegir un algoritmo
 
 | Algoritmo | Qué calcula | Pesos negativos |
@@ -20,3 +22,18 @@ A* muestra las prioridades g, h y f; Bellman-Ford muestra sus tablas y Floyd-War
 | [Floyd-Warshall](algoritmos/floyd-warshall.md) | Todos los pares de nodos | Se admiten en grafos dirigidos |
 
 **Marcar paso** identifica el evento original para exportarlo después mediante **Pasos marcados**. **Copiar imagen** / `Ctrl+Shift+C` usa el paso exacto y las opciones de Exportar. Con foco en el lienzo, las flechas navegan y Espacio reproduce o pausa; `Alt+←/→` navega desde otros controles. **Cancelar operación** permanece disponible durante un cálculo en segundo plano o una exportación.
+
+## Visor de presentación
+
+**Presentar** / `F11` abre las diapositivas a pantalla completa con la composición, tema y resolución de Exportar. Selecciona avance por **Pasos**, **Fases** o **Marcas**; escribe un paso para saltar directamente. Las marcas identifican el evento original y se comparten con el escritorio. Si no hay marcas, el visor indica cómo crear una.
+
+| Tecla | Acción en el visor |
+| --- | --- |
+| `←` / `→` | Retroceder / avanzar según el modo seleccionado |
+| `Home` / `End` | Primer / último paso del modo |
+| `Espacio` | Reproducir / pausar con el intervalo del escritorio |
+| `M` | Marcar / quitar marca del paso |
+| `H` | Ocultar / mostrar controles |
+| `Esc` / `F11` | Salir |
+
+El visor muestra una diapositiva completa por estado, con matrices y arcos íntegros; el foco ampliado es opcional y no reemplaza las tablas. Salir conserva el paso visible, el zoom y las posiciones del escritorio. `Ctrl+1..4` cambia de pestaña en el escritorio y `Ctrl+Alt+P` abre los perfiles visuales.

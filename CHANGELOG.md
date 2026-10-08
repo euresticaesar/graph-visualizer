@@ -1,0 +1,13 @@
+# Cambios
+
+## 0.3.0 — 2026-10-08
+
+- Una diapositiva completa 16:9 por estado en PNG, PDF y SVG, con matrices y arcos íntegros, exportación atómica y cancelable, manifiesto y grafo reproducible.
+- Composición adaptativa o manual, proporción del grafo, atenuación de conexiones, foco ampliado y diagnóstico de tamaños reales de fuente; opciones equivalentes en CLI.
+- Vista previa íntegra con zoom y desplazamiento, visor a pantalla completa con pasos/fases/marcas, reproducción y teclado.
+- Seis temas, incluido daltónico azul/naranja, cuatro layouts, perfiles visuales portables y offsets de etiquetas persistentes y deshacibles.
+- Accesibilidad nativa, navegación de matrices, nuevos atajos y correcciones de esquinas de tablas y geometría del layout compacto.
+- Pruebas de integridad y referencias visuales por regiones/celdas, CI con referencias obligatorias y muestras reproducibles actualizadas.
+- Retirada de helpers internos antiguos del exportador; los consumidores usan `SlideRenderer`. Se mantienen los cuatro algoritmos existentes y la compatibilidad de presets y perfiles.
+
+En diapositivas densas la letra se reduce para conservar todos los datos. 4K permite inspeccionar más píxeles, pero no garantiza lectura a distancia al proyectar la imagen completa. La validación automatizada de accesibilidad queda complementada por revisión manual con lectores de pantalla reales en cada plataforma.

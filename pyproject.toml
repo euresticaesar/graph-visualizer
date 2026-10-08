@@ -1,6 +1,6 @@
 [project]
 name = "graph-visualizer"
-version = "0.2.0"
+version = "0.3.0"
 description = "Visualizador didáctico de Dijkstra, A*, Bellman-Ford y Floyd-Warshall"
 readme = "README.md"
 authors = [

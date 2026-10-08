@@ -9,7 +9,9 @@ El análisis priorizó la fidelidad y legibilidad de las imágenes y documentos 
 | Prioridad | Evidencia anterior | Corrección |
 | --- | --- | --- |
 | Alta | Un estado grande podía requerir varias imágenes, incompatibles con un slideshow de un paso por diapositiva | Una sola diapositiva 16:9 con grafo, matrices completas o listas en columnas, explicación, ruta y leyenda; composición y escala adaptativas |
-| Alta | Las esquinas superiores y el espacio vacío de los encabezados mostraban cuadrados negros en el tema claro | Fondo explícito para `QHeaderView`, `QTableCornerButton` y esquina del área desplazable, comprobado en los cinco temas |
+| Alta | Las esquinas superiores y el espacio vacío de los encabezados mostraban cuadrados negros en el tema claro | Fondo explícito para `QHeaderView`, `QTableCornerButton` y esquina del área desplazable, comprobado en los seis temas |
+| Alta | La vista previa comprimía la altura del QLabel y recortaba título, explicación, tablas y leyenda | Cada QLabel tiene el tamaño completo de su pixmap, centrado horizontalmente; el desplazamiento permite consultar ambos extremos y Encajar reserva un ancho estable para la scrollbar |
+| Alta | El layout inferior compacto conservaba posiciones de splitter incompatibles con los mínimos nuevos | Activación de layouts, mínimos efectivos y reajuste del splitter sin recursión; los tamaños manuales válidos se conservan al reducir, ampliar y cambiar de algoritmo |
 | Alta | Exportar un paso detallado con la opción Resumen podía cambiar del evento 2 al 4 | El paso actual conserva el evento exacto; el manifiesto registra evento, explicación y página |
 | Alta | Una escritura de PDF rechazada podía terminar con aviso de éxito | Se comprueban apertura, finalización y commit; publicación de carpeta completa y limpieza de resultados parciales |
 | Alta | Ctrl+Y durante un worker podía modificar el grafo y provocar un error de índices | Bloqueo de acciones y guardas durante operaciones, copia del grafo y revisión asociada al resultado |
@@ -25,44 +27,44 @@ El análisis priorizó la fidelidad y legibilidad de las imágenes y documentos 
 - PNG con resolución configurable; PDF y SVG vectoriales, con render compartido con la vista previa.
 - Navegación completa de la vista previa, zoom al 100 %, título, tipografía, leyenda y composición configurables.
 - Filtros por rango inclusivo, mejoras y eventos marcados; copia de imagen al portapapeles.
-- Cinco esquemas de color, acento personalizado, cuatro distribuciones de interfaz y preferencias independientes de los presets.
+- Seis esquemas de color, acento personalizado, cuatro distribuciones de interfaz y preferencias independientes de los presets.
 - Cancelación cooperativa de cálculos y cancelación entre páginas de exportación.
 - Datos accesibles mediante tablas de nodos/conexiones, edición de coordenadas y alineación/distribución manual deshacible.
 - Exportación desde preset por terminal, sin modificar el trabajo abierto.
 - Grafo reproducible y manifiesto con explicaciones completas, rutas, dimensiones y eventos originales junto a cada exportación.
 
-La verificación incluye pruebas de algoritmos contra NetworkX, integridad de todas las celdas y resaltados de matrices completas, geometría sin solapamientos, una página/archivo por estado en PNG/PDF/SVG, explicación íntegra en PDF, errores de escritura, cancelación, conservación de vista y estados, historial, preferencias, contraste y texto vectorial. La inspección visual cubrió los cinco esquemas, cuatro distribuciones, ventanas grandes y pequeñas, tipografía ampliada, 30 nodos e IDs largos.
+La verificación incluye pruebas de algoritmos contra NetworkX, integridad de todas las celdas y resaltados de matrices completas, geometría sin solapamientos, una página/archivo por estado en PNG/PDF/SVG, explicación íntegra en PDF, errores de escritura, cancelación, conservación de vista y estados, historial, preferencias, contraste y texto vectorial. Las regresiones de vista previa comprueban ancho, altura, centrado, acceso a ambos extremos y estabilidad tras redimensionar en Encajar, 50 % y 100 %, con temas claro y oscuro. El layout inferior se comprueba al pasar de 940 × 680 a 940 × 940 y volver, cambiar de layout y alternar Bellman-Ford, A* y Floyd-Warshall. Las pruebas nativas comprueban las esquinas y zonas vacías en los seis temas.
 
-El preset de 30 nodos conserva las **1 800 celdas de Floyd-Warshall** o los **126 arcos ordenados de Bellman-Ford** junto al grafo en una imagen. La densidad impone un límite de lectura: en la muestra de Floyd-Warshall el texto base efectivo es aproximadamente **8.9 px en HD** y **17.8 px en 4K**, antes de ajustes individuales de celdas. El tamaño solicitado puede reducirse para cumplir la integridad de la diapositiva. Aumentar los píxeles facilita la inspección y el zoom, pero al proyectar la imagen completa sobre una pantalla de igual tamaño siguen presentes los mismos datos. No se promete letra grande para matrices arbitrariamente densas.
+El preset de 30 nodos conserva sus **63 conexiones no dirigidas**, las **1 800 celdas de Floyd-Warshall** o los **126 arcos ordenados de Bellman-Ford** junto al grafo en una imagen. Las muestras finales consultan `1 → 666` y conservan la ruta **1 → 10 → 27 → 666, costo 10**. La densidad impone un límite de lectura: con Qt 6.11.2 y Noto Sans, la muestra actual de Floyd-Warshall tiene un mínimo real de tablas de aproximadamente **15.1 px en 4K** y texto del grafo de **11.1 px**, incluyendo los ajustes individuales. Estas medidas dependen de la fuente y la composición; el diagnóstico de cada exportación es la referencia. Aumentar los píxeles facilita la inspección y el zoom, pero al proyectar la imagen completa sobre una pantalla de igual tamaño siguen presentes los mismos datos. No se promete letra grande para matrices arbitrariamente densas.
 
-## Backlog para otro agente
+## Estado de las siete tareas de la auditoría
 
-Estas oportunidades quedan separadas de las correcciones implementadas. Mantener los cuatro algoritmos actuales.
+Las siete tareas están implementadas. Se conservan exclusivamente los cuatro algoritmos originales.
 
 ### P1 — Diagnóstico de legibilidad antes de exportar
 
-La integridad está cubierta; la letra puede resultar demasiado pequeña en matrices grandes, rutas largas o explicaciones extensas. Añadir un diagnóstico que mida el tamaño efectivo mínimo del texto y muestre sus causas en la vista previa, con acciones para cambiar resolución, escala o distribución. Mantener una sola diapositiva 16:9 por estado y todos sus datos; evitar soluciones de continuación. Para proyección, proponer una ampliación opcional de la celda/comparación activa dentro de la misma diapositiva, conservando ambas matrices completas. Criterios: el diagnóstico coincide con el render real y PNG/PDF/SVG conservan idéntica composición.
+Implementada. La vista previa mide las fuentes realmente ajustadas y las transformaciones del renderer, por categoría: grafo, tablas, título, explicación, leyenda y foco. Avisa por debajo de 12 px y ofrece **Usar 4K** y **Ajustar composición**. El foco amplía la comparación o una celda mejorada dentro de la misma diapositiva, sin sustituir ninguna tabla. Los píxeles medidos no garantizan lectura a distancia en proyección.
 
 ### P1 — Presets de presentación reutilizables
 
-Permitir guardar, nombrar, importar y exportar combinaciones de tema, acento, tipografía, resolución, leyenda y composición, además de las cuatro distribuciones de UI existentes. Conservar su independencia del preset del grafo y mantener compatibilidad de preferencias. Añadir esquemas específicos para daltonismo y codificación redundante mediante trazos o símbolos; verificar contraste de cada estado y celda resaltada. Criterios: ida y vuelta del perfil sin cambios de grafo, preferencias antiguas compatibles y vista previa fiel.
+Implementada. **Perfiles** guarda, aplica, renombra, elimina, importa y exporta tema, acento, tipografía, opciones de exportación y layout de UI. No altera el grafo ni el evento visible y no incluye dimensiones del equipo. El sexto tema es **Daltónico (azul y naranja)**; comparación y ciclo negativo tienen trazos redundantes y las mejoras usan negritas. Se validan archivos antes de modificar preferencias y se mantiene la compatibilidad con perfiles antiguos.
 
 ### P2 — Conexiones con etiquetas densas
 
-Una geometría cargada todavía puede solapar pesos y anotaciones. Añadir offsets de etiquetas editables manualmente y opción de atenuar conexiones ajenas a la ruta consultada para la exportación. Persistir estos ajustes de presentación, conservar la identidad `(origen, destino, id)` y comprobar paralelas, sentidos opuestos y enlaces cruzados. Criterios: edición deshacible, guardado reproducible y mismos offsets en pantalla y exportación; conservar las conexiones y sus tablas.
+Implementada. Los offsets X/Y se editan en **Datos del grafo**, se restablecen por selección y son persistentes y deshacibles por `(origen, destino, id)`, incluidas paralelas y sentidos opuestos. La exportación puede atenuar conexiones ajenas a la ruta sin eliminarlas ni modificar las tablas. La colocación sigue siendo manual: una geometría arbitrariamente densa puede requerir ajustar posiciones y etiquetas.
 
 ### P2 — Modo presentación y composición ajustable
 
-Añadir un visor a pantalla completa con teclado, favoritos, pausa y avance por evento o fase. Permitir ajustar la proporción grafo/tablas y elegir una composición lateral o superior, además de la selección adaptativa actual. Mantener el lienzo 16:9 y validar los límites al mover separadores para evitar recortes. Criterios: la vista previa reproduce la exportación, cada paso contiene toda la información y salir del visor conserva navegación, zoom y posiciones.
+Implementada. **Presentar / F11** abre el visor de las mismas diapositivas, con pasos, fases, marcas, reproducción y teclado. Salir conserva el paso, zoom y posiciones del escritorio; las marcas son compartidas. Exportar admite composición adaptativa, grafo a la izquierda o arriba y una proporción manual de 20–65 %. Cada estado completo sigue siendo 16:9. El escritorio adapta mínimos y hints en el layout inferior compacto; otros layouts o tipografías mayores pueden exigir una ventana más alta para conservar el panel visible.
 
 ### P2 — Regresión visual mantenible
 
-Convertir las muestras verificadas en fixtures visuales de render con fuentes y backend Qt controlados. Cubrir temas, tipografía 1.5, negativos, IDs largos, ambas matrices completas y esquinas de tablas. Evitar comparar capturas completas de escritorio entre sistemas distintos; verificar geometría y zonas relevantes con tolerancias documentadas. Criterios: un cambio que pierda una celda, un arco o el final de una explicación debe fallar; los cambios legítimos requieren actualizar muestras revisables.
+Implementada. Las referencias cubren matrices y resaltados, ciclo negativo, IDs largos con escala 1.5 y tema oscuro, y foco daltónico. Comparan regiones y celdas con diferencia media RGBA ≤ 2 bajo Qt y métricas de fuente coincidentes. Las pruebas de integridad, texto y geometría cubren además las matrices de 30 × 30, todos los arcos y esquinas nativas. El renderer de referencias selecciona DejaVu Sans, instalado en CI; allí `GV_REQUIRE_RENDER_REFERENCES=1` convierte una discrepancia de entorno en fallo, evitando omisiones sistemáticas. La regeneración requiere inspección visual; las capturas nativas son evidencia revisable, no goldens portables entre sistemas.
 
 ### P2 — Accesibilidad y operación por teclado
 
-Auditar el flujo completo de foco, edición tabular, vista previa y personalización con teclado y lector de pantalla. El diálogo de datos ya permite consultar valores y modificar coordenadas; mejorar nombres de conexiones paralelas, anuncio del estado actual y del progreso de exportación. Criterios: crear/editar un grafo, recorrerlo y exportarlo sin ratón, con indicadores de foco visibles en los cinco temas.
+Implementada y verificada por teclado y pruebas del API accesible de Qt. Se añadieron nombres y descripciones, identidad explícita de conexiones, selección de matrices, foco visible, anuncios de estados, errores y progreso, y atajos de pestañas, perfiles y presentación. Las pruebas recorren creación de nodo, navegación y apertura de exportación sin ratón. Queda como validación manual de plataforma la escucha con lectores de pantalla reales; las pruebas de anuncios nativos no sustituyen esa comprobación.
 
 ### P3 — Compatibilidad interna del exportador
 
-`image_exporter.py` conserva helpers de medición antiguos para compatibilidad; no intervienen en el render actual. Migrar sus consumidores y pruebas al compositor de diapositivas y retirarlos con una política explícita de compatibilidad. Mantener una sola fuente de dimensiones, bloques, colores y resaltados. Criterios: vista previa y archivos usan exclusivamente `SlideRenderer`, sin pérdida de integridad ni cambios de recuento.
+Implementada. Se retiraron los helpers internos antiguos de medición, tablas y leyenda de `image_exporter.py`; sus consumidores y pruebas usan el compositor actual. `SlideRenderer` es la única fuente de composición para PNG/PDF/SVG, vista previa, portapapeles y visor. Las funciones de exportación vigentes y los formatos de preset/perfil se conservan; las importaciones directas de helpers internos retirados deben migrarse al renderer en la versión 0.3.0.

@@ -47,4 +47,4 @@ def test_new_console_command_help_and_packaged_examples(tmp_path):
         [command, "--help"], cwd=tmp_path, capture_output=True, text=True, check=True
     )
     assert "--data-dir" in result.stdout and "Bellman-Ford" in result.stdout
-    assert distribution("graph-visualizer").version == "0.2.0"
+    assert distribution("graph-visualizer").version == "0.3.0"
