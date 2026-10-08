@@ -23,3 +23,5 @@ Doble clic en el fondo agrega un nodo; arrastrar su centro lo mueve; arrastrar e
 Los cambios se guardan automáticamente. **↶ / ↷**, `Ctrl+Z` y `Ctrl+Y` conservan hasta 100 acciones, incluidos movimientos, cambios de tipo y cargas de presets. Durante cálculos y exportaciones se bloquean también los atajos de edición; **Volver a editar** detiene la reproducción y conserva el historial.
 
 **Datos del grafo** (`Ctrl+D`) permite revisar los IDs completos y editar coordenadas con teclado. Selecciona filas para alinear o distribuir nodos y pulsa **Aplicar**: todo el acomodo se guarda como una sola acción deshacible. Los IDs largos se abrevian visualmente sin modificar su identidad ni su zona de conexión.
+
+La pestaña **Conexiones** permite editar **Etiqueta X / Y** para separar pesos que se solapan. El desplazamiento se mide respecto al centro del arco, conserva su identidad `(origen, destino, ID)` y se utiliza también en las imágenes finales. **Restablecer etiquetas seleccionadas** vuelve a desplazamiento cero; **Aplicar** guarda posiciones y etiquetas como una acción deshacible.

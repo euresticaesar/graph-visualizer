@@ -228,11 +228,14 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         workspace_tools = QHBoxLayout()
         self.appearance_button = QPushButton("Personalizar")
         self.appearance_button.clicked.connect(self.open_appearance)
+        self.profiles_button = QPushButton("Perfiles")
+        self.profiles_button.setToolTip("Guardar, aplicar o compartir perfiles de presentación.")
+        self.profiles_button.clicked.connect(self.open_presentation_profiles)
         self.focus_button = QPushButton("Ampliar lienzo")
         self.focus_button.clicked.connect(self.toggle_focus_layout)
         self.copy_image_button = QPushButton("Copiar imagen")
         self.copy_image_button.setToolTip(
-            "Copia la primera página del paso visible con las opciones de Exportar."
+            "Copia la diapositiva completa del paso visible con las opciones de Exportar."
         )
         self.copy_image_button.clicked.connect(self.copy_current_image)
         self.bookmark_button = QPushButton("Marcar paso")
@@ -240,6 +243,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.bookmark_button.clicked.connect(self.toggle_bookmark)
         for button in (
             self.appearance_button,
+            self.profiles_button,
             self.focus_button,
             self.copy_image_button,
             self.bookmark_button,

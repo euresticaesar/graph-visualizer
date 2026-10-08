@@ -30,7 +30,9 @@ def main() -> int:
     parser.add_argument("--format", choices=("png", "pdf", "svg"), default="png")
     parser.add_argument("--kind", choices=("all", "combined", "final"), default="final")
     parser.add_argument(
-        "--theme", choices=("light", "dark", "paper", "contrast", "print"), default="light"
+        "--theme",
+        choices=("light", "dark", "paper", "contrast", "print", "colorblind"),
+        default="light",
     )
     parser.add_argument("--resolution", type=int, choices=(1920, 2560, 3840), default=1920)
     parser.add_argument("--layout", choices=("balanced", "graph", "tables"), default="balanced")

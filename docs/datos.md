@@ -9,8 +9,9 @@ El trabajo sigue utilizando archivos UTF-8:
 | `nodes.csv` | Encabezado `id`, una fila por nodo |
 | `edges.csv` | `source,target,weight,id`; lectores aceptan también el formato antiguo sin `id` |
 | `layout.json` | Objeto `{ "ID": { "x": número, "y": número } }` |
-| `graph.json` | `{ "version": 1, "directed": false }` |
+| `graph.json` | Versión 1, tipo dirigido/no dirigido y lista opcional `edge_labels` con origen, destino, ID y desplazamiento X/Y de etiquetas |
 | `preferences.json` | Apariencia, distribución de paneles y opciones de exportación; independiente del grafo y los presets |
+| `presentation_profiles/*.json` | Perfiles visuales versionados y compartibles; sin grafo ni estado calculado |
 
 Sin `graph.json`, el grafo se interpreta como **no dirigido**. Los IDs numéricos antiguos se leen como strings sin pérdida; pesos, claves y coordenadas se conservan. No hace falta convertir manualmente los archivos: al editar se escribe el formato actual, con metadatos de tipo y escape CSV estándar para comas/comillas/saltos de línea. Las distancias se calculan con la precisión de los números Python; el formato visual usa hasta doce decimales sin ceros finales, o notación científica para magnitudes menores a `1e-6` o mayores o iguales a `1e9`. No interviene en comparaciones. Se detecta desbordamiento de sumas finitas y se informa como error.
 

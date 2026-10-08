@@ -303,21 +303,7 @@ class ExportControls:
         destination.content.addWidget(self.output_button)
         controls.addWidget(destination)
         controls.addStretch()
-        for key, widget in (
-            ("export_format", self.export_format),
-            ("export_theme", self.export_theme),
-            ("export_resolution", self.export_resolution),
-            ("export_layout", self.export_layout),
-            ("export_group", self.export_group),
-        ):
-            widget.setCurrentIndex(widget.findData(self.preferences[key]))
-        self.export_style.setCurrentIndex(self.preferences["export_style"])
-        self.export_detail.setCurrentIndex(self.preferences["export_detail"])
-        self.export_font_scale.setValue(self.preferences["export_font_scale"])
-        self.export_title.setText(self.preferences["export_title"])
-        self.export_legend.setChecked(self.preferences["export_legend"])
-        self.export_explanation.setChecked(self.preferences["export_explanation"])
-        self.preview_before_export.setChecked(self.preferences["preview_before_export"])
+        self.restore_export_preferences()
         for widget in (
             self.export_format,
             self.export_style,
@@ -335,6 +321,23 @@ class ExportControls:
         self.export_legend.toggled.connect(self.refresh_export_preview)
         self.export_explanation.toggled.connect(self.refresh_export_preview)
         return page
+
+    def restore_export_preferences(self):
+        for key, widget in (
+            ("export_format", self.export_format),
+            ("export_theme", self.export_theme),
+            ("export_resolution", self.export_resolution),
+            ("export_layout", self.export_layout),
+            ("export_group", self.export_group),
+        ):
+            widget.setCurrentIndex(widget.findData(self.preferences[key]))
+        self.export_style.setCurrentIndex(self.preferences["export_style"])
+        self.export_detail.setCurrentIndex(self.preferences["export_detail"])
+        self.export_font_scale.setValue(self.preferences["export_font_scale"])
+        self.export_title.setText(self.preferences["export_title"])
+        self.export_legend.setChecked(self.preferences["export_legend"])
+        self.export_explanation.setChecked(self.preferences["export_explanation"])
+        self.preview_before_export.setChecked(self.preferences["preview_before_export"])
 
     def collect_export_preferences(self):
         for key in (

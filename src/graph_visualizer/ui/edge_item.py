@@ -28,6 +28,7 @@ class EdgeItem(QGraphicsPathItem):
         offset=0.0,
         directed=False,
         show_id=False,
+        label_offset=(0, 0),
     ):
         super().__init__()
         self.source, self.target = source, target
@@ -35,6 +36,7 @@ class EdgeItem(QGraphicsPathItem):
         self.weight = weight
         self.key, self.offset = key, offset
         self.directed = directed
+        self.label_offset = QPointF(*label_offset)
         self.setZValue(-1)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setToolTip(
@@ -66,7 +68,9 @@ class EdgeItem(QGraphicsPathItem):
         path = QPainterPath(start)
         path.quadTo(control, end)
         self.setPath(path)
-        self.label.setPos(path.pointAtPercent(0.5) - self.label.boundingRect().center())
+        self.label.setPos(
+            path.pointAtPercent(0.5) - self.label.boundingRect().center() + self.label_offset
+        )
 
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)

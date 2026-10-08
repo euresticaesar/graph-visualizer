@@ -32,6 +32,7 @@ class GraphView(QGraphicsView):
         self.palette = palette or palette_for()
         self.font_scale = font_scale
         self.auto_fit = False
+        self.dim_unrelated = False
         self.last_state = (None, "", "", False)
         self.setAccessibleName("Grafo del recorrido")
         self.editable = True
@@ -91,6 +92,11 @@ class GraphView(QGraphicsView):
                         offset,
                         graph.is_directed(),
                         show_id=self.show_edge_ids,
+                        label_offset=(
+                            graph[source][target][key]
+                            if graph.is_multigraph()
+                            else graph[source][target]
+                        ).get("label_offset", (0, 0)),
                     )
                     self.scene().addItem(edge)
                     self.edges[edge_id(source, target, key, graph.is_directed())] = edge
@@ -185,14 +191,19 @@ class GraphView(QGraphicsView):
                     item.fill = QColor(self.palette.error_fill)
         for pair, edge in self.edges.items():
             edge.set_highlighted(pair in path_edges)
+            edge.setOpacity(
+                0.3 if self.dim_unrelated and path_edges and pair not in path_edges else 1
+            )
             if state and pair in {edge_id(*e, self.graph.is_directed()) for e in state.cycle}:
-                edge.setPen(QPen(QColor(self.palette.error), 5))
+                edge.setOpacity(1)
+                edge.setPen(QPen(QColor(self.palette.error), 5, Qt.PenStyle.DotLine))
             if (
                 state
                 and state.current_edge
                 and pair == edge_id(*state.current_edge, self.graph.is_directed())
             ):
-                edge.setPen(QPen(QColor(self.palette.comparison), 5))
+                edge.setOpacity(1)
+                edge.setPen(QPen(QColor(self.palette.comparison), 5, Qt.PenStyle.DashLine))
                 edge.label.setBrush(QColor(self.palette.comparison))
         self._update_scene_rect()
 

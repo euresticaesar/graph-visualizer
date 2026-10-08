@@ -38,9 +38,27 @@ THEME_NAMES = {
     "paper": "Sepia",
     "contrast": "Alto contraste",
     "print": "Impresión",
+    "colorblind": "Daltónico (azul y naranja)",
 }
 PALETTES = {
     "light": Palette(),
+    "colorblind": Palette(
+        accent="#005f8a",
+        selection="#dceef7",
+        visited="#c8e4f6",
+        tentative="#fce4bf",
+        current="#005f8a",
+        unreached="#e2e8f0",
+        target="#583996",
+        error="#8a3415",
+        error_fill="#fce0d3",
+        comparison="#874900",
+        comparison_fill="#fce4bf",
+        improvement="#fff0bf",
+        k_fill="#c8e4f6",
+        k_border="#005f8a",
+        active="#583996",
+    ),
     "dark": Palette(
         canvas="#101820",
         surface="#192530",

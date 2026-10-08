@@ -6,6 +6,7 @@ from pathlib import Path
 import networkx as nx
 
 from graph_visualizer.core.graph import edges_with_keys, validate_graph
+from graph_visualizer.io.edge_labels import apply_edge_labels, edge_label_records
 from graph_visualizer.io.files import atomic_write_files
 from graph_visualizer.io.layout_io import PositionMap, serialize_layout
 
@@ -36,6 +37,7 @@ def _node_id(value: str, location: str) -> str:
 def load_graph(nodes_path: Path, edges_path: Path) -> nx.MultiGraph:
     metadata = nodes_path.parent / "graph.json"
     directed = False
+    info = {}
     if metadata.exists():
         info = json.loads(metadata.read_text(encoding="utf-8"))
         if (
@@ -75,6 +77,7 @@ def load_graph(nodes_path: Path, edges_path: Path) -> nx.MultiGraph:
             raise ValueError(f"{location}: peso no válido {row['weight']!r}.") from error
         graph.add_edge(source, target, key=key, weight=weight)
 
+    apply_edge_labels(graph, info.get("edge_labels", []))
     validate_graph(graph)
     return graph
 
@@ -100,7 +103,13 @@ def save_graph_data(data_dir: Path, graph: nx.Graph, positions: PositionMap) -> 
     nodes, edges = nodes_stream.getvalue(), edges_stream.getvalue()
     atomic_write_files(
         {
-            data_dir / "graph.json": json.dumps({"version": 1, "directed": graph.is_directed()}),
+            data_dir / "graph.json": json.dumps(
+                {
+                    "version": 1,
+                    "directed": graph.is_directed(),
+                    "edge_labels": edge_label_records(graph),
+                }
+            ),
             data_dir / "nodes.csv": nodes,
             data_dir / "edges.csv": edges,
             data_dir / "layout.json": serialize_layout(positions),

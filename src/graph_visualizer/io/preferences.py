@@ -31,8 +31,8 @@ DEFAULTS = {
     "results_sizes": [],
 }
 CHOICES = {
-    "theme": {"light", "dark", "paper", "contrast", "print"},
-    "export_theme": {"light", "dark", "paper", "contrast", "print", "app"},
+    "theme": {"light", "dark", "paper", "contrast", "print", "colorblind"},
+    "export_theme": {"light", "dark", "paper", "contrast", "print", "colorblind", "app"},
     "ui_layout": {"classic", "right", "bottom", "focus"},
     "export_layout": {"balanced", "graph", "tables"},
     "export_resolution": {1920, 2560, 3840},

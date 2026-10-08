@@ -9,6 +9,7 @@ from pathlib import Path
 import networkx as nx
 
 from graph_visualizer.core.graph import edges_with_keys, normalize_id, validate_graph
+from graph_visualizer.io.edge_labels import apply_edge_labels, edge_label_records
 from graph_visualizer.io.files import atomic_write_files
 from graph_visualizer.io.layout_io import PositionMap
 
@@ -31,6 +32,7 @@ class Preset:
                 for u, v, k, d in edges_with_keys(self.graph)
             ],
             "positions": {n: list(p) for n, p in self.positions.items()},
+            "edge_labels": edge_label_records(self.graph),
             "settings": self.settings,
         }
 
@@ -59,6 +61,7 @@ def parse_preset(data) -> Preset:
             if graph.has_edge(u, v, key):
                 raise ValueError("ID de conexión duplicado para el par.")
             graph.add_edge(u, v, key=key, weight=edge["weight"])
+        apply_edge_labels(graph, data.get("edge_labels", []))
         validate_graph(graph)
         positions = {}
         for value, point in data["positions"].items():

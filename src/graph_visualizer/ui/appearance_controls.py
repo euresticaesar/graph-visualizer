@@ -119,6 +119,26 @@ def style_sheet(p, size):
 
 
 class AppearanceControls:
+    def open_presentation_profiles(self):
+        if self.busy:
+            return
+        from graph_visualizer.ui.presentation_profiles import PresentationProfilesDialog
+
+        dialog = PresentationProfilesDialog(self)
+        dialog.show()
+
+    def apply_presentation_profile(self, document):
+        from graph_visualizer.io.presentation_profiles import parse_profile
+
+        if self.busy:
+            return
+        self.preferences.update(parse_profile(document)["preferences"])
+        self.restore_export_preferences()
+        self.state_labels_checkbox.setChecked(self.preferences["state_labels"])
+        self.edge_ids_checkbox.setChecked(self.preferences["edge_ids"])
+        self.apply_appearance()
+        self.persist_preferences()
+
     def apply_appearance(self):
         values = self.preferences
         p = palette_for(values["theme"], values["accent"])

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from graph_visualizer.core.graph import edges_with_keys
 from graph_visualizer.core.models import format_number
+from graph_visualizer.io.edge_labels import label_offset
 
 
 def table(headers, rows, *, editable_columns=()):
@@ -98,11 +99,26 @@ class GraphDataDialog(QDialog):
             editable_columns=(1, 2) if self.editable else (),
         )
         self.node_table.setAccessibleName("Nodos, coordenadas y estado del recorrido")
-        connections = table(
-            ["Origen", "Destino", "ID", "Peso"],
-            [(u, v, k, format_number(d["weight"])) for u, v, k, d in edges_with_keys(owner.graph)],
+        self.edge_rows = tuple(edges_with_keys(owner.graph))
+        self.connections = connections = table(
+            ["Origen", "Destino", "ID", "Peso", "Etiqueta X", "Etiqueta Y"],
+            [
+                [u, v, k, format_number(d["weight"]), *d.get("label_offset", (0, 0))]
+                for u, v, k, d in self.edge_rows
+            ],
+            editable_columns=(4, 5) if self.editable else (),
         )
         connections.setAccessibleName("Conexiones del grafo con IDs y pesos")
+        connections.setAccessibleDescription(
+            "Cada fila identifica origen, destino e ID de una conexión. "
+            "Etiqueta X e Y desplazan su peso sin mover los nodos."
+        )
+        for row, (u, v, key, _) in enumerate(self.edge_rows):
+            for col in range(connections.columnCount()):
+                connections.item(row, col).setData(
+                    Qt.ItemDataRole.AccessibleDescriptionRole,
+                    f"Conexión {u} a {v}, ID {key}. {connections.horizontalHeaderItem(col).text()}",
+                )
         tabs.addTab(self.node_table, "Nodos y posiciones")
         tabs.addTab(connections, "Conexiones")
         column.addWidget(tabs, 1)
@@ -122,10 +138,17 @@ class GraphDataDialog(QDialog):
                 )
                 commands.addWidget(button)
             column.addLayout(commands)
+            reset_labels = QPushButton("Restablecer etiquetas seleccionadas")
+            reset_labels.setToolTip(
+                "Selecciona filas en Conexiones y aplica para guardar el cambio."
+            )
+            reset_labels.clicked.connect(self.reset_labels)
+            column.addWidget(reset_labels)
         self.error = QLabel()
         self.error.setObjectName("error")
         self.error.setWordWrap(True)
         self.error.setTextFormat(Qt.TextFormat.PlainText)
+        self.error.setAccessibleName("Error al editar los datos")
         column.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         if self.editable:
@@ -178,11 +201,39 @@ class GraphDataDialog(QDialog):
             return
         try:
             positions = self.positions()
+            offsets = self.label_offsets()
         except ValueError as error:
             self.error.setText(str(error))
             return
-        snapshot = self.owner._snapshot("Acomodar nodos")
+        snapshot = self.owner._snapshot("Acomodar nodos y etiquetas")
         snapshot.positions = positions
+        for (u, v, key, _), offset in zip(self.edge_rows, offsets, strict=True):
+            if offset == (0, 0):
+                snapshot.graph[u][v][key].pop("label_offset", None)
+            else:
+                snapshot.graph[u][v][key]["label_offset"] = offset
         if self.owner._commit_edit(snapshot):
             self.owner.graph_view.fit_graph()
             self.error.clear()
+
+    def label_offsets(self):
+        try:
+            values = [
+                tuple(float(self.connections.item(row, col).text()) for col in (4, 5))
+                for row in range(len(self.edge_rows))
+            ]
+        except ValueError as error:
+            raise ValueError(
+                "Etiqueta X e Y deben ser números finitos. Usa punto decimal."
+            ) from error
+        return [label_offset(value) for value in values]
+
+    def reset_labels(self):
+        selected = {index.row() for index in self.connections.selectionModel().selectedRows()}
+        if not selected:
+            self.error.setText("Selecciona conexiones para restablecer sus etiquetas.")
+            return
+        for row in selected:
+            for col in (4, 5):
+                self.connections.item(row, col).setText("0")
+        self.error.clear()
