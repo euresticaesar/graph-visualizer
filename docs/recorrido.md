@@ -4,6 +4,8 @@
 
 La pestaña **Recorrido** agrupa **Configurar recorrido**, **Explorar pasos** y **Reproducción automática**. Elige el algoritmo y sus opciones, luego **Iniciar**. Durante la ejecución, la explicación, la fase, la iteración y la posición aparecen en una tarjeta encima del grafo. Puedes avanzar, retroceder, ir al inicio/final con **⇤ / ⇥**, escribir un número de paso o saltar a una fase/iteración. **Reproducir / Pausar** utiliza un solo temporizador; el intervalo se expresa en milisegundos por paso.
 
+Deja el puntero sobre una casilla para consultar su ayuda breve. **Por comparación** muestra cada comparación al activarlo y resume por nodo al desactivarlo; en Floyd-Warshall el resumen corresponde a cada intermedio `k`.
+
 **⇄** intercambia origen y destino en una sola acción deshacible. Durante Floyd-Warshall también permite invertir la ruta consultada sin recalcular; se deshabilita cuando uno de los selectores está bloqueado. Al escribir un número de paso, la navegación espera a que pulses **Enter** o salgas del campo. Al llegar al final, **Repetir recorrido** reproduce los mismos estados desde el inicio.
 
 La reproducción se detiene al llegar al final, cambiar de algoritmo o detalle, cargar un preset, abrir otra pestaña, exportar o volver a editar. Cambiar de detalle navega sobre los mismos eventos ya calculados y elige una posición equivalente, sin recalcular ni volver obligatoriamente al inicio.

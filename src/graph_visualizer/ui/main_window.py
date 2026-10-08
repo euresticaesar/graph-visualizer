@@ -148,7 +148,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         return button
 
     @staticmethod
-    def _scroll_page(widget: QWidget) -> QFrame:
+    def _scroll_page(widget: QWidget, *, horizontal_scroll=True) -> QFrame:
         card = QFrame()
         card.setObjectName("controlCard")
         layout = QVBoxLayout(card)
@@ -157,6 +157,8 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         scroll.setObjectName("controlScroll")
         scroll.viewport().setObjectName("controlViewport")
         scroll.setWidgetResizable(True)
+        if not horizontal_scroll:
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         widget.setObjectName("controlPage")
         scroll.setWidget(widget)
@@ -199,7 +201,9 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
         self.graph_view.connection_requested.connect(self._connect_nodes)
         self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
-        self.tabs.addTab(self._scroll_page(self._export_controls()), "Exportar")
+        self.tabs.addTab(
+            self._scroll_page(self._export_controls(), horizontal_scroll=False), "Exportar"
+        )
         self.tabs.currentChanged.connect(self._tab_changed)
         controls.addWidget(self.tabs, 1)
         self._build_legend(controls)
@@ -281,8 +285,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.edge_ids_checkbox.setChecked(self.preferences["edge_ids"])
         self.graph_view.set_edge_ids_visible(self.preferences["edge_ids"])
         self.edge_ids_checkbox.setToolTip(
-            "Muestra #ID junto al peso para distinguir conexiones paralelas. "
-            "También se aplica a las exportaciones PNG."
+            "Muestra IDs en el grafo y la tabla exportada para distinguir conexiones paralelas."
         )
         self.edge_ids_checkbox.toggled.connect(self.graph_view.set_edge_ids_visible)
         self.edge_ids_checkbox.toggled.connect(self.refresh_export_preview)
@@ -290,6 +293,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         display_row.addStretch()
         self.help_button = QToolButton()
         self.help_button.setText("Gestos y ayuda")
+        self.help_button.setToolTip("Muestra los gestos para editar, mover y ampliar el grafo.")
         self.help_button.setCheckable(True)
         display_row.addWidget(self.help_button)
         graph_column.addLayout(display_row)
@@ -413,6 +417,9 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
     def _build_legend(self, controls: QVBoxLayout) -> None:
         self.legend_button = QToolButton()
         self.legend_button.setText("Colores y notación")
+        self.legend_button.setToolTip(
+            "Muestra el significado de los colores y símbolos del recorrido."
+        )
         self.legend_button.setCheckable(True)
         self.legend_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.legend_button.setArrowType(Qt.ArrowType.RightArrow)
@@ -495,6 +502,9 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.early_stop.setVisible(False)
         setup.content.addWidget(self.early_stop)
         self.detail_checkbox = QCheckBox("Por comparación")
+        self.detail_checkbox.setToolTip(
+            "Muestra cada comparación; al desactivar, resume cada nodo procesado."
+        )
         self.detail_checkbox.setChecked(True)
         self.detail_checkbox.toggled.connect(self.change_detail)
         setup.content.addWidget(self.detail_checkbox)
@@ -1275,12 +1285,13 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.export_detail.setToolTip(
             "Bellman-Ford exporta un paso por arco."
             if algorithm == "Bellman-Ford"
-            else "Elige el detalle de las imágenes sin cambiar el paso visible."
+            else "Elige resumen o comparaciones para Pasos separados y Conjuntas, "
+            "sin cambiar el recorrido visible."
         )
         self.detail_checkbox.setToolTip(
-            "Desmarcado: una iteración completa de k"
+            "Muestra cada comparación; al desactivar, resume cada intermedio k."
             if algorithm == "Floyd-Warshall"
-            else "Desmarcado: resumen por nodo"
+            else "Muestra cada comparación; al desactivar, resume cada nodo procesado."
         )
         self.legend_grid.itemAtPosition(1, 0).widget().setVisible(algorithm in {"Dijkstra", "A*"})
         self.notation.setText(

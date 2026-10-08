@@ -52,6 +52,8 @@ Las pruebas usan directorios temporales y cubren algoritmos frente a NetworkX, c
 
 Las marcas se prueban en los cuatro algoritmos, incluidas comparaciones tardías ocultas en resumen, acceso por teclado y sincronización con el visor. El portapapeles se comprueba con su imagen real en los seis temas y con acento personalizado. Las explicaciones de diapositivas se verifican por operandos, negritas, contraste mínimo 4.5:1, texto literal y tamaño real de fuente; se comprueba el PDF seleccionable y el resaltado exacto de arcos paralelos con IDs visibles u ocultos.
 
+Los controles de Exportar se prueban con paneles de 310–520 px, fuente de 13 y 18 px, temas claro/oscuro y controles a izquierda/derecha o tablas inferiores. Las opciones avanzadas y los rangos deben caber sin desplazamiento horizontal ni recorte de controles y mantener accesible el destino mediante desplazamiento vertical. Las ayudas nativas de todas las casillas se comprueban desde el arranque; los filtros preservan los eventos de Paso actual y Resultado final.
+
 ## Referencias visuales y CI
 
 [`tests/render_reference.py`](../tests/render_reference.py) define cuatro renders: matrices con resaltados, ciclo negativo, IDs largos con tema oscuro y escala 1.5, y tema daltónico con foco. Usa estilo **Fusion** y una sustitución de fuente **DejaVu Sans** solo durante estas comparaciones; restaura la fuente habitual al terminar. El manifiesto de [`tests/fixtures/render/`](../tests/fixtures/render/) registra Qt, familia, altura y ancho de una cadena de referencia. Actualmente corresponde a Qt **6.11.2** y DejaVu Sans, con altura **20.9375** y ancho **182.265625** a 18 px.

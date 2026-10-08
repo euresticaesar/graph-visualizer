@@ -2,6 +2,8 @@
 
 ## Sin publicar
 
+- Exportar reúne Detalle y Filtro en Seleccionar pasos, muestra Desde/Hasta solo para rangos y ajusta formularios y acciones al ancho del panel sin desplazamiento horizontal.
+- Ayudas breves en todas las casillas, incluidas explicación, leyenda, atenuación, foco y vista previa; etiquetas más cortas para las opciones avanzadas.
 - Lista de pasos marcados en Recorrido, con contador, navegación por teclado y acceso al evento exacto cuando una marca está oculta en resumen.
 - Copiar imagen respeta el tema y acento actuales de la interfaz, conservando composición y resolución y el esquema independiente de los archivos exportados.
 - Las diapositivas omiten por defecto los IDs de conexiones en grafo, tabla de arcos y explicación; conservan todos los arcos y su resaltado exacto. La opción de IDs permite mostrarlos en grafo y tabla.

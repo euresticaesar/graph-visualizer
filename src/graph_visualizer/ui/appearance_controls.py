@@ -212,6 +212,7 @@ class AppearanceControls:
             qt_palette.setColor(role, QColor(color))
         self.setPalette(qt_palette)
         self.setStyleSheet(style_sheet(p, values["ui_font_size"]))
+        self.fit_export_controls()
         self.graph_view.set_appearance(p, values["graph_font_scale"])
         self.state_panel.palette = self.matrix_panel.palette = p
         layout = values["ui_layout"]

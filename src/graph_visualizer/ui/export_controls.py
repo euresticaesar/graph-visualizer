@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QToolButton,
     QVBoxLayout,
@@ -251,7 +252,7 @@ class ExportPreview(QDialog):
 
 class ExportControls:
     def _export_controls(self):
-        page = QWidget()
+        page = self.export_page = QWidget()
         controls = QVBoxLayout(page)
         controls.setContentsMargins(0, 4, 0, 4)
         controls.setSpacing(12)
@@ -266,7 +267,12 @@ class ExportControls:
         self.export_style = QComboBox()
         self.export_style.addItems(["Didáctico", "Simple (solo grafo)"])
         self.export_detail = QComboBox()
-        self.export_detail.addItems(["Detalle visible", "Resumen", "Subpasos"])
+        self.export_detail.addItems(["Como en Recorrido", "Resumen", "Por comparación"])
+        self.export_detail.setAccessibleName("Detalle de los pasos exportados")
+        self.export_detail.setToolTip(
+            "Elige resumen o comparaciones para Pasos separados y Conjuntas, "
+            "sin cambiar el recorrido visible."
+        )
         self.export_theme = QComboBox()
         self.export_theme.addItem("Como la interfaz", "app")
         for key, name in THEME_NAMES.items():
@@ -295,8 +301,15 @@ class ExportControls:
         self.export_graph_fraction.setToolTip(
             "Porcentaje de ancho (lateral) o alto (superior) reservado al grafo."
         )
-        self.export_dim_unrelated = QCheckBox("Atenuar conexiones fuera de la ruta")
-        self.export_focus = QCheckBox("Ampliar comparación activa en la diapositiva")
+        self.export_dim_unrelated = QCheckBox("Atenuar conexiones")
+        self.export_dim_unrelated.setToolTip(
+            "Reduce la opacidad de conexiones fuera de la ruta, sin ocultarlas."
+        )
+        self.export_focus = QCheckBox("Ampliar foco del paso")
+        self.export_focus.setToolTip(
+            "Añade una comparación, celda o ruta ampliada en la misma diapositiva, "
+            "conservando las tablas completas."
+        )
         self.export_group = QComboBox()
         self.export_group.addItem("2 páginas", 2)
         self.export_group.addItem("4 páginas", 4)
@@ -304,26 +317,38 @@ class ExportControls:
         self.export_font_scale.setRange(0.8, 1.5)
         self.export_font_scale.setSingleStep(0.1)
         self.export_legend = QCheckBox("Incluir leyenda")
+        self.export_legend.setToolTip(
+            "Añade la clave de colores, trazos y símbolos a la diapositiva."
+        )
         self.export_explanation = QCheckBox("Incluir explicación")
+        self.export_explanation.setToolTip(
+            "Incluye la explicación del paso y la ruta consultada con su costo."
+        )
         self.export_title = QLineEdit()
         self.export_title.setMaxLength(200)
         self.export_title.setPlaceholderText("Título opcional de las diapositivas")
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         for name, widget in (
             ("Formato", self.export_format),
             ("Estilo", self.export_style),
-            ("Pasos", self.export_detail),
             ("Esquema", self.export_theme),
             ("Resolución", self.export_resolution),
         ):
             form.addRow(name, widget)
         options.content.addLayout(form)
         advanced_button = self.export_advanced_button = QToolButton()
-        advanced_button.setText("Composición y tipografía")
+        advanced_button.setText("Composición y texto")
+        advanced_button.setToolTip("Muestra ajustes de distribución, tipografía y contenido.")
         advanced_button.setCheckable(True)
         options.content.addWidget(advanced_button)
-        advanced = QWidget()
+        advanced = self.export_advanced = QWidget()
+        advanced.setObjectName("exportAdvanced")
         advanced_form = QFormLayout(advanced)
+        advanced_form.setContentsMargins(0, 0, 0, 0)
+        advanced_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        advanced_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         for name, widget in (
             ("Distribución", self.export_layout),
             ("Composición", self.export_composition),
@@ -346,14 +371,23 @@ class ExportControls:
         options.content.addWidget(self.export_description)
         controls.addWidget(options)
 
-        selection = SectionCard("Seleccionar pasos")
+        selection = SectionCard(
+            "Seleccionar pasos",
+            "Para Pasos separados y Conjuntas. Paso actual y Resultado final "
+            "conservan su evento exacto.",
+        )
         self.export_selection = QComboBox()
         self.export_selection.addItems(["Todos", "Rango", "Solo mejoras", "Pasos marcados"])
+        self.export_selection.setAccessibleName("Filtro de los pasos exportados")
+        self.export_selection.setToolTip("Filtra los pasos dentro del nivel de detalle elegido.")
         self.export_from, self.export_to = QSpinBox(), QSpinBox()
         for widget in (self.export_from, self.export_to):
             widget.setKeyboardTracking(False)
-        selection_form = QFormLayout()
-        selection_form.addRow("Selección", self.export_selection)
+        selection_form = self.export_selection_form = QFormLayout()
+        selection_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        selection_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        selection_form.addRow("Detalle", self.export_detail)
+        selection_form.addRow("Filtro", self.export_selection)
         selection_form.addRow("Desde", self.export_from)
         selection_form.addRow("Hasta", self.export_to)
         selection.content.addLayout(selection_form)
@@ -385,13 +419,16 @@ class ExportControls:
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.export_count_labels[kind] = label
             column.addWidget(label)
-            buttons.addWidget(choice, index // 2, index % 2)
+            buttons.addWidget(choice, index, 0)
         images.content.addLayout(buttons)
         self.export_summary = QLabel()
         self.export_summary.setObjectName("hint")
         self.export_summary.setWordWrap(True)
         images.content.addWidget(self.export_summary)
-        self.preview_before_export = QCheckBox("Mostrar vista previa antes de exportar")
+        self.preview_before_export = QCheckBox("Vista previa al exportar")
+        self.preview_before_export.setToolTip(
+            "Permite revisar las diapositivas y confirmar o cancelar antes de crear archivos."
+        )
         images.content.addWidget(self.preview_before_export)
         controls.addWidget(images)
         destination = SectionCard(
@@ -399,11 +436,18 @@ class ExportControls:
             "Cada carpeta incluye el grafo y un manifiesto para identificar "
             "y reproducir sus páginas.",
         )
-        self.output_button = QPushButton("Abrir carpeta de exportaciones")
+        self.output_button = QPushButton("Abrir carpeta")
+        self.output_button.setToolTip("Abre la carpeta donde se guardan las exportaciones.")
         self.output_button.clicked.connect(self.open_output_folder)
         destination.content.addWidget(self.output_button)
         controls.addWidget(destination)
         controls.addStretch()
+        for combo in page.findChildren(QComboBox):
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
+            combo.setMinimumContentsLength(8)
+            combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.restore_export_preferences()
         for widget in (
             self.export_format,
@@ -430,6 +474,12 @@ class ExportControls:
         self.export_dim_unrelated.toggled.connect(self.refresh_export_preview)
         self.export_focus.toggled.connect(self.refresh_export_preview)
         return page
+
+    def fit_export_controls(self):
+        # Form layouts can otherwise allocate slightly less than a styled combo's
+        # minimum hint after changing fonts, preventing WrapLongRows from reflowing.
+        for combo in self.export_page.findChildren(QComboBox):
+            combo.setMinimumWidth(combo.minimumSizeHint().width())
 
     def restore_export_preferences(self):
         for key, widget in (
@@ -568,6 +618,8 @@ class ExportControls:
         self.export_explanation.setEnabled(not simple)
         self.export_title.setEnabled(not simple)
         in_range = self.export_selection.currentIndex() == 1
+        self.export_selection_form.setRowVisible(self.export_from, in_range)
+        self.export_selection_form.setRowVisible(self.export_to, in_range)
         self.export_from.setEnabled(in_range)
         self.export_to.setEnabled(in_range)
         if not self.states:
