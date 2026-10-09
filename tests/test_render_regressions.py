@@ -17,7 +17,8 @@ def controlled_font(qapp):
 
 
 @pytest.mark.parametrize(
-    "case_name", ["matrix_highlights", "negative_cycle", "long_ids_dark", "colorblind_focus"]
+    "case_name",
+    ["astar_adaptive", "matrix_highlights", "negative_cycle", "long_ids_dark", "colorblind_focus"],
 )
 def test_slide_render_regions_match_reviewed_references(controlled_font, tmp_path, case_name):
     manifest = json.loads((REFERENCES / "manifest.json").read_text())

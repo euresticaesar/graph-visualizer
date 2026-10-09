@@ -8,6 +8,7 @@ import networkx as nx
 from PySide6.QtCore import QRectF, qVersion
 from PySide6.QtGui import QFont, QFontInfo, QFontMetricsF
 
+from graph_visualizer.core.astar import astar_steps
 from graph_visualizer.core.bellman_ford import bellman_ford_steps
 from graph_visualizer.core.floyd_warshall import floyd_warshall_steps
 from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer, text_font
@@ -41,6 +42,16 @@ def fingerprint():
 
 
 def cases():
+    preset = read_preset(REPOSITORY / "src/graph_visualizer/examples/repositorio_30.json")
+    yield (
+        "astar_adaptive",
+        preset.graph,
+        preset.positions,
+        astar_steps(preset.graph, "3", "12")[0],
+        "3",
+        "12",
+        SlideOptions(show_legend=False),
+    )
     preset = read_preset(REPOSITORY / "src/graph_visualizer/examples/floyd_warshall.json")
     states = floyd_warshall_steps(preset.graph)
     state = next(state for state in states if state.changed)

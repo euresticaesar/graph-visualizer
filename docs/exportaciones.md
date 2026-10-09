@@ -18,9 +18,15 @@ La explicación distingue **conexión o intermedio**, **cálculo candidato**, **
 
 ![Comparación de Bellman-Ford con conexión, cálculo y decisión destacados](images/comparacion-didactica.png)
 
-Las listas se redistribuyen en columnas con encabezados y rangos de filas **dentro de la misma imagen**. Floyd-Warshall conserva completas sus matrices de distancias y recorridos, con todos los índices y resaltados originales. Bellman-Ford conserva todos los arcos ordenados, incluidos los dos sentidos de una conexión no dirigida. El compositor elige una distribución horizontal o vertical de los paneles y ajusta la escala para evitar solapamientos. La cámara del grafo y la composición permanecen fijas entre los pasos de una misma ejecución.
+Las listas se redistribuyen en columnas con encabezados y rangos de filas **dentro de la misma imagen**. Floyd-Warshall conserva completas sus matrices de distancias y recorridos, con todos los índices y resaltados originales. Bellman-Ford conserva todos los arcos ordenados, incluidos los dos sentidos de una conexión no dirigida. El compositor compara distribuciones laterales e inferiores por el tamaño real del grafo y del texto, con la prioridad de la distribución elegida. En **Adaptativa** mide la franja ocupada por los bloques, incluidos títulos, encabezados y separaciones, y entrega el espacio sobrante al grafo. Una tabla estrecha ya no reserva media diapositiva. La cámara del grafo y la composición permanecen fijas entre los pasos de una misma ejecución.
+
+![A* con 30 nodos: la tabla ocupa su franja y el grafo aprovecha el ancho restante](images/astar-30-adaptativa.png)
 
 En **Composición** puedes conservar **Adaptativa** o forzar **Grafo a la izquierda** / **Grafo arriba**. **Espacio del grafo** reserva entre 20 % y 65 % del ancho en la composición lateral o del alto en la superior; solo se activa en las composiciones manuales. La escala de las tablas se ajusta al espacio restante y conserva todo su contenido. **Atenuar conexiones** reduce la opacidad de las conexiones fuera de la ruta sin ocultarlas; **Ampliar foco del paso** añade un foco con la comparación, celda mejorada o ruta del estado. El foco complementa las matrices y listas completas.
+
+Cuando las matrices quedan debajo, sus columnas se reparten todo el ancho disponible entre los márgenes y la separación de paneles, tanto en Adaptativa como en Grafo arriba. Se ensanchan las celdas sin deformar letras, cambiar la altura de las filas ni eliminar índices. La proporción manual del grafo sigue respetándose. Si el alto disponible limita la fuente, ensanchar las columnas no elimina ese límite.
+
+![Floyd-Warshall con el grafo arriba al 65 % y las dos matrices completas aprovechando el ancho inferior](images/floyd-30-inferior.png)
 
 Los IDs largos reciben etiquetas abreviadas distintas entre sí. Las tablas usan las mismas etiquetas y una referencia en la misma diapositiva conserva los IDs completos. El título, la explicación, la ruta y los valores de las celdas ajustan su tipografía para conservar el texto completo sin puntos suspensivos adicionales. El manifiesto también registra la explicación original y los IDs completos.
 

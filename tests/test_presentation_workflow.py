@@ -15,7 +15,7 @@ from graph_visualizer.core.dijkstra import dijkstra_steps
 from graph_visualizer.core.graph import graphs_equal
 from graph_visualizer.core.models import format_number
 from graph_visualizer.export.image_exporter import export_graph
-from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer
+from graph_visualizer.export.slide_renderer import SlideOptions, SlideRenderer, footer_height
 from graph_visualizer.io.edge_labels import apply_edge_labels, edge_label_records
 from graph_visualizer.io.graph_io import load_graph, save_graph_data
 from graph_visualizer.io.preferences import DEFAULTS
@@ -198,6 +198,13 @@ def test_manual_composition_with_focus_keeps_complete_nonoverlapping_slide(
         assert plan.focus_rect is not None
         rectangles = [plan.graph_rect, plan.focus_rect]
         assert not plan.graph_rect.intersects(plan.focus_rect)
+        if composition == "side":
+            assert plan.graph_rect.width() == pytest.approx(1856 * fraction - 12)
+        else:
+            body_height = (
+                1080 - footer_height(renderer.options, algorithm) - plan.focus_rect.bottom() - 12
+            )
+            assert plan.graph_rect.height() == pytest.approx(body_height * fraction - 12)
         for block, x, y in plan.blocks:
             rect = QRectF(x, y, block.width, block.height)
             assert QRectF(0, 0, 1920, 1080).contains(rect)

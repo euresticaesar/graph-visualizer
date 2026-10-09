@@ -5,7 +5,7 @@ No matrix cells, arcs, explanations or ID references continue onto another page.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontInfo, QFontMetricsF, QImage, QPainter, QPen
@@ -348,11 +348,11 @@ def pack_blocks(blocks, area, scale):
     placements = []
     for block in blocks:
         width, height = block.natural_width * scale, block.natural_height * scale
-        if width > area.width() + 0.001:
+        if width > area.width():
             return None
-        if x > area.left() and x + width > area.right() + 0.001:
+        if x > area.left() and x + width > area.right():
             x, y, shelf = area.left(), y + shelf + GAP, 0
-        if y + height > area.bottom() + 0.001:
+        if y + height > area.bottom():
             return None
         placements.append((block, x, y))
         x += width + GAP
@@ -373,6 +373,46 @@ def fit_blocks(blocks, area):
         else:
             low, placements = scale, packed
     return low, placements
+
+
+def reclaim_table_space(body, placements, scale, orientation):
+    """Anchor the occupied table band at the edge and give its slack to the graph."""
+    left = min(x for _, x, _ in placements)
+    top = min(y for _, _, y in placements)
+    right = max(x + block.natural_width * scale for block, x, _ in placements)
+    bottom = max(y + block.natural_height * scale for block, _, y in placements)
+    if orientation == "side":
+        shift = body.right() - right
+        tables = QRectF(left + shift, body.top(), right - left, body.height())
+        plot = QRectF(body.left(), body.top(), tables.left() - GAP - body.left(), body.height())
+        placements = [(block, x + shift, y) for block, x, y in placements]
+    else:
+        shift = body.bottom() - bottom
+        tables = QRectF(body.left(), top + shift, body.width(), bottom - top)
+        plot = QRectF(body.left(), body.top(), body.width(), tables.top() - GAP - body.top())
+        placements = [(block, x, y + shift) for block, x, y in placements]
+    return plot, tables, placements
+
+
+def expand_matrix_rows(placements, area, scale):
+    """Use the full lower band without changing fonts, row heights or matrix contents."""
+    result = []
+    rows = {}
+    for placement in placements:
+        rows.setdefault(placement[2], []).append(placement)
+    for row in rows.values():
+        matrices = [block for block, _, _ in row if block.kind in {"matrix", "intermediates"}]
+        extra = area.width() - sum(block.natural_width * scale for block, _, _ in row)
+        extra -= GAP * (len(row) - 1)
+        matrix_width = sum(block.natural_width for block in matrices)
+        factor = 1 + max(0, extra - 0.001) / (matrix_width * scale) if matrices else 1
+        x = area.left()
+        for block, _, y in row:
+            if block.kind in {"matrix", "intermediates"}:
+                block = replace(block, widths=[width * factor for width in block.widths])
+            result.append((block, x, y))
+            x += block.natural_width * scale + GAP
+    return result
 
 
 def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
@@ -397,13 +437,13 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
         tables = QRectF(
             plot.right() + GAP, body.top(), body.right() - plot.right() - GAP, body.height()
         )
-        layouts.append((plot, tables))
+        layouts.append((plot, tables, "side"))
     for fraction in (0.35, 0.45):
         plot = QRectF(body.left(), body.top(), body.width(), body.height() * fraction - GAP)
         tables = QRectF(
             body.left(), plot.bottom() + GAP, body.width(), body.bottom() - plot.bottom() - GAP
         )
-        layouts.append((plot, tables))
+        layouts.append((plot, tables, "top"))
     if options.composition == "side":
         plot = QRectF(
             body.left(), body.top(), body.width() * options.graph_fraction - GAP, body.height()
@@ -411,7 +451,7 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
         tables = QRectF(
             plot.right() + GAP, body.top(), body.right() - plot.right() - GAP, body.height()
         )
-        layouts = [(plot, tables)]
+        layouts = [(plot, tables, "side")]
     elif options.composition == "top":
         plot = QRectF(
             body.left(), body.top(), body.width(), body.height() * options.graph_fraction - GAP
@@ -419,7 +459,7 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
         tables = QRectF(
             body.left(), plot.bottom() + GAP, body.width(), body.bottom() - plot.bottom() - GAP
         )
-        layouts = [(plot, tables)]
+        layouts = [(plot, tables, "top")]
     arc_count = len(ordered_arcs(graph)) if algorithm == "Bellman-Ford" else 0
     count = max(len(graph), arc_count)
     limits = {len(graph), count, 8, 12, 16, 20, 24, 30, 40, 48, 64, 96}
@@ -427,28 +467,37 @@ def page_plans(graph, algorithm, options, aliases=None, *, graph_bounds=None):
     limits.update(math.ceil(len(graph) / k) for k in range(1, 5))
     if algorithm == "Floyd-Warshall":
         limits = {len(graph)}
+    graph_weight = {"balanced": 0.55, "graph": 0.7, "tables": 0.35}[options.layout]
     best = None
     for limit in sorted(n for n in limits if 0 < n <= count):
         blocks = table_blocks(graph, algorithm, options, aliases, rows_per_block=limit)
         if not blocks:
             return [PagePlan(True, [], body, focus)]
-        for plot, tables in layouts:
+        for plot, tables, orientation in layouts:
             scale, placements = fit_blocks(blocks, tables)
             if not scale:
                 continue
             graph_plot = QRectF(plot)
+            if options.composition == "auto":
+                graph_plot, tables, placements = reclaim_table_space(
+                    body, placements, scale, orientation
+                )
             graph_scale = min(
                 graph_plot.width() / graph_bounds.width(),
                 graph_plot.height() / graph_bounds.height(),
             )
             table_font = 18 * options.font_scale * scale
             graph_font = 15 * options.graph_font_scale * graph_scale
-            score = table_font**0.45 * graph_font**0.55 - len(blocks) * 0.002
+            score = (
+                table_font ** (1 - graph_weight) * graph_font**graph_weight - len(blocks) * 0.002
+            )
             if best is None or score > best[0]:
-                best = score, graph_plot, placements, scale, focus
+                best = score, graph_plot, tables, placements, scale, orientation
     if best is None:
         raise ValueError("No se pudo componer el contenido de la diapositiva.")
-    _, plot, placements, scale, focus = best
+    _, plot, tables, placements, scale, orientation = best
+    if orientation == "top":
+        placements = expand_matrix_rows(placements, tables, scale)
     for block, _, _ in placements:
         block.scale = scale
     return [PagePlan(True, placements, plot, focus)]
