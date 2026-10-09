@@ -44,7 +44,7 @@ def test_invalid_edit_does_not_touch_files(tmp_path):
     positions = {"1": (0, 0), "2": (100, 0)}
     save_graph_data(tmp_path, graph, positions)
     before = {path: path.read_bytes() for path in tmp_path.iterdir()}
-    graph["1"]["2"]["weight"] = -1
+    graph["1"]["2"]["weight"] = float("nan")
     with pytest.raises(ValueError):
         save_graph_data(tmp_path, graph, positions)
     assert {path: path.read_bytes() for path in tmp_path.iterdir()} == before

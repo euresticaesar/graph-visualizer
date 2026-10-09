@@ -40,18 +40,21 @@ def test_double_click_cancel_does_not_write(window, monkeypatch):
     assert {p: p.read_bytes() for p in window.data_dir.iterdir()} == before
 
 
-def test_rim_drag_adds_parallel_edge_without_moving_nodes(window, monkeypatch):
-    answers(monkeypatch, [("-1", True), ("nan", True), ("1.25", True)])
+@pytest.mark.parametrize("weight", [-1, 1.25])
+def test_rim_drag_adds_parallel_edge_without_moving_nodes(window, monkeypatch, weight):
+    answers(monkeypatch, [("inf", True), ("nan", True), (str(weight), True)])
     view = window.graph_view
     positions = view.positions()
     drag_connection(view)
     assert view.positions() == positions
-    assert window.graph["1"]["2"][1]["weight"] == 1.25
+    assert window.graph["1"]["2"][1]["weight"] == weight
+    assert window.run_button.isEnabled() == (weight >= 0)
     assert view.connection_preview is None
     window.undo()
     assert window.graph.number_of_edges("1", "2") == 1
     window.redo()
     assert window.graph.number_of_edges("1", "2") == 2
+    assert window.graph["1"]["2"][1]["weight"] == weight
 
 
 @pytest.mark.parametrize("label", [True, False])

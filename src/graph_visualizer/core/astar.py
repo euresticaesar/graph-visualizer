@@ -5,17 +5,17 @@ import math
 import networkx as nx
 
 from graph_visualizer.core.dijkstra import dijkstra_steps
-from graph_visualizer.core.graph import ordered_arcs, validate_graph
+from graph_visualizer.core.graph import algorithm_weight_error, ordered_arcs, validate_graph
 
 
 def astar_steps(graph, start, target, *, detailed=False, _cancelled=None):
     validate_graph(graph)
     if start not in graph or target not in graph:
         raise ValueError("Selecciona origen y destino existentes.")
+    if error := algorithm_weight_error(graph, "A*"):
+        raise ValueError(error)
     arcs = ordered_arcs(graph)
     minimum = min((w for _, _, _, w in arcs), default=0.0)
-    if minimum < 0:
-        raise ValueError("A* no admite pesos negativos; usa Bellman-Ford o Floyd-Warshall.")
     reverse = graph.reverse(copy=False) if graph.is_directed() else graph
     hops = nx.single_source_shortest_path_length(reverse, target)
     # A finite common bound for unreachable nodes preserves consistency on every arc.

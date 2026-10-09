@@ -39,7 +39,8 @@ class GraphEditor(QWidget):
         self.graph_type.setToolTip(
             "No dirigido → dirigido: dos arcos por conexión.\n"
             "Dirigido → no dirigido: conserva todos los arcos como conexiones paralelas "
-            "y reasigna claves en conflicto. Rechaza pesos negativos."
+            "y reasigna claves en conflicto.\n"
+            "Una conexión no dirigida negativa genera un ciclo negativo."
         )
         graph_card.content.addWidget(self.graph_type)
         self.graph_type_hint = QLabel()
@@ -143,7 +144,7 @@ class GraphEditor(QWidget):
         self.graph_type_hint.setText(
             "Con flechas · Admite pesos negativos"
             if graph.is_directed()
-            else "Ambos sentidos · Pesos no negativos"
+            else "Ambos sentidos · Admite pesos negativos"
         )
         with QSignalBlocker(self.graph_type):
             self.graph_type.setCurrentIndex(int(graph.is_directed()))
@@ -218,12 +219,10 @@ class GraphEditor(QWidget):
     def _save_edge(self, new: bool = False) -> None:
         try:
             weight = float(self.weight_input.text())
-            if not math.isfinite(weight) or (weight < 0 and not self.graph.is_directed()):
+            if not math.isfinite(weight):
                 raise ValueError
         except ValueError:
-            self.error_label.setText(
-                "El peso debe ser finito; negativo solo en grafos dirigidos. Usa punto decimal."
-            )
+            self.error_label.setText("El peso debe ser un número finito. Usa punto decimal.")
             return
         self.error_label.clear()
         self.save_edge_requested.emit(

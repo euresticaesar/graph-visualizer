@@ -3,7 +3,13 @@ import math
 
 import networkx as nx
 
-from graph_visualizer.core.graph import EdgeId, edge_id, ordered_arcs, validate_graph
+from graph_visualizer.core.graph import (
+    EdgeId,
+    algorithm_weight_error,
+    edge_id,
+    ordered_arcs,
+    validate_graph,
+)
 from graph_visualizer.core.models import (
     AlgorithmCancelled,
     AlgorithmState,
@@ -19,11 +25,11 @@ def dijkstra_steps(
     validate_graph(graph)
     if start not in graph or target not in graph:
         raise ValueError("Selecciona origen y destino existentes.")
-    arcs = ordered_arcs(graph)
-    if any(w < 0 for _, _, _, w in arcs):
-        raise ValueError("Dijkstra no admite pesos negativos; usa Bellman-Ford o Floyd-Warshall.")
-    heuristics = _heuristics or dict.fromkeys(graph, 0.0)
     algorithm = "A*" if _heuristics is not None else "Dijkstra"
+    if error := algorithm_weight_error(graph, algorithm):
+        raise ValueError(error)
+    arcs = ordered_arcs(graph)
+    heuristics = _heuristics or dict.fromkeys(graph, 0.0)
     distances = dict.fromkeys(sorted(graph), math.inf)
     predecessors = dict.fromkeys(graph)
     keys = dict.fromkeys(graph)

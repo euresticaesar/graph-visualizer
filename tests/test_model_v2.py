@@ -30,8 +30,9 @@ def test_directed_conversion_and_weights(tmp_path):
     assert set(d.edges(keys=True)) == {("A", "B", 5), ("B", "A", 5)}
     assert convert_graph(d, False).number_of_edges() == 2
     d["A"]["B"][5]["weight"] = -1
-    with pytest.raises(ValueError):
-        convert_graph(d, False)
+    undirected = convert_graph(d, False)
+    assert undirected.number_of_edges() == 2
+    assert sorted(data["weight"] for data in undirected["A"]["B"].values()) == [-1, 0]
     save_graph_data(tmp_path, d, {"A": (0, 0), "B": (1, 1)})
     assert load_graph(tmp_path / "nodes.csv", tmp_path / "edges.csv").is_directed()
     for weight in [math.nan, math.inf, -math.inf]:

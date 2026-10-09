@@ -59,15 +59,22 @@ def test_directed_ui_conversion_and_negative_weight_rules(window, monkeypatch):
     assert window.graph.number_of_edges() == 2 * count
     assert window.set_edge("1", "2", -3, 0)
     window.editor.graph_type.setCurrentIndex(0)
-    assert window.graph.is_directed()
-    assert "negativos" in window.editor.error_label.text()
+    assert not window.graph.is_directed()
+    assert window.graph.number_of_edges() == 2 * count
+    assert not window.editor.error_label.text()
+    assert not window.run_button.isEnabled()
     warnings = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *a: warnings.append(a[-1]))
     window.initialize()
     assert not window.states
-    assert "Dijkstra" in warnings[-1]
+    assert not warnings
+    assert "Dijkstra" in window.algorithm_warning.text()
+    window.undo()
+    assert window.graph.is_directed()
+    assert not window.run_button.isEnabled()
     window.undo()
     assert window.graph["1"]["2"][0]["weight"] == 4
+    assert window.run_button.isEnabled()
     window.editor.graph_type.setCurrentIndex(0)
     assert window.graph.number_of_edges() == 2 * count
     assert not window.graph.is_directed()

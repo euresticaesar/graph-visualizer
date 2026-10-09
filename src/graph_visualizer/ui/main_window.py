@@ -28,13 +28,14 @@ from PySide6.QtWidgets import (
 )
 
 from graph_visualizer.core.dijkstra import dijkstra_steps
-from graph_visualizer.core.graph import graphs_equal, validate_graph
+from graph_visualizer.core.graph import algorithm_weight_error, graphs_equal, validate_graph
 from graph_visualizer.core.models import DijkstraState
 from graph_visualizer.export.image_exporter import ExportKind, export_job
 from graph_visualizer.io.graph_io import load_graph, save_graph_data
 from graph_visualizer.io.layout_io import PositionMap, load_layout, save_layout
 from graph_visualizer.io.preferences import load_preferences
 from graph_visualizer.paths import DATA_DIR, OUTPUT_DIR
+from graph_visualizer.ui.accessibility import MessageLabel
 from graph_visualizer.ui.appearance_controls import AppearanceControls
 from graph_visualizer.ui.export_controls import ExportControls
 from graph_visualizer.ui.graph_editor import GraphEditor
@@ -508,6 +509,12 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.detail_checkbox.setChecked(True)
         self.detail_checkbox.toggled.connect(self.change_detail)
         setup.content.addWidget(self.detail_checkbox)
+        self.algorithm_warning = MessageLabel()
+        self.algorithm_warning.setObjectName("error")
+        self.algorithm_warning.setAccessibleName("Compatibilidad del algoritmo")
+        self.algorithm_warning.setWordWrap(True)
+        self.algorithm_warning.hide()
+        setup.content.addWidget(self.algorithm_warning)
         self.run_button = QPushButton("Iniciar Dijkstra")
         self.run_button.setObjectName("primary")
         self.run_button.clicked.connect(self.initialize)
@@ -650,6 +657,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             f"{'Dirigido' if self.graph.is_directed() else 'No dirigido'}"
         )
         self._refresh_swap_button()
+        self._refresh_algorithm_availability()
 
     def _persist_and_restore(self, snapshot: EditSnapshot) -> bool:
         current = self.history[self.history_index]
@@ -823,14 +831,14 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
                 return None
             try:
                 weight = float(value)
-                if not math.isfinite(weight) or (weight < 0 and not self.graph.is_directed()):
+                if not math.isfinite(weight):
                     raise ValueError
                 return weight
             except ValueError:
                 QMessageBox.warning(
                     self,
                     "Peso no válido",
-                    "Usa un número finito; negativo solo en grafos dirigidos.",
+                    "Usa un número finito, con punto decimal si hace falta.",
                 )
 
     def _edit_edge_at(self, source: str, target: str, key: int) -> None:
@@ -900,11 +908,8 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
             or isinstance(weight, bool)
             or not isinstance(weight, (int, float))
             or not math.isfinite(weight)
-            or (weight < 0 and not self.graph.is_directed())
         ):
-            self.editor.error_label.setText(
-                "Conecta dos nodos distintos con un peso finito; negativo solo en grafos dirigidos."
-            )
+            self.editor.error_label.setText("Conecta dos nodos distintos con un peso finito.")
             return False
         snapshot = self._snapshot(f"Guardar conexión {source}–{target}")
         if key is not None and not self.graph.has_edge(source, target, key):
@@ -922,11 +927,23 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         snapshot.graph.remove_edge(source, target, key)
         return self._commit_edit(snapshot)
 
+    def _refresh_algorithm_availability(self) -> None:
+        error = algorithm_weight_error(self.graph, self.algorithm_combo.currentText())
+        self.algorithm_warning.setText(error or "")
+        self.algorithm_warning.setVisible(error is not None)
+        self.run_button.setEnabled(not error and not self.states and not self.busy)
+        self.run_button.setToolTip(error or "")
+        self.run_button.setAccessibleDescription(error or "")
+
     def initialize(self) -> None:
         if self.busy:
             return
         self.stop_playback()
         algorithm = self.algorithm_combo.currentText()
+        if error := algorithm_weight_error(self.graph, algorithm):
+            self._refresh_algorithm_availability()
+            self.statusBar().showMessage(error)
+            return
         estimated = (
             len(self.graph) ** 3
             if algorithm == "Floyd-Warshall"
@@ -1272,7 +1289,8 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
                 "Heurística admisible; con peso mínimo cero equivale a Dijkstra.",
                 "Dijkstra": "Ruta mínima entre el origen y el destino.",
                 "Bellman-Ford": "Desde el origen a todos los nodos. Admite pesos negativos.",
-                "Floyd-Warshall": "Todos los pares. Origen y destino solo consultan una ruta.",
+                "Floyd-Warshall": "Todos los pares. Admite pesos negativos. "
+                "Origen y destino solo consultan una ruta.",
             }[algorithm]
         )
         self.start_label.setText("Consultar desde" if algorithm == "Floyd-Warshall" else "Origen")
@@ -1370,7 +1388,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.start_combo.setEnabled(True)
         self.target_combo.setEnabled(True)
         self._refresh_swap_button()
-        self.run_button.setEnabled(True)
+        self._refresh_algorithm_availability()
         self.copy_image_button.setEnabled(False)
         self.bookmark_button.setEnabled(False)
         self.bookmark_button.setChecked(False)

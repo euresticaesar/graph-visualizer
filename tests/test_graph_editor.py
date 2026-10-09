@@ -123,7 +123,7 @@ def test_new_edit_clears_redo_and_selection_is_undoable(window):
     assert "13" not in window.graph and "14" in window.graph
 
 
-@pytest.mark.parametrize("value", ["-1", "nan", "inf", "abc", ""])
+@pytest.mark.parametrize("value", ["nan", "inf", "abc", ""])
 def test_editor_rejects_invalid_weight(window, value):
     original = window.graph.copy()
     window.editor.weight_input.setText(value)

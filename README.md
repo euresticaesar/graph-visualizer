@@ -15,6 +15,8 @@ uv run graph-visualizer
 
 En **Editar** crea o modifica el grafo; en **Recorrido** elige el algoritmo, origen y destino y pulsa **Iniciar**. Usa **Presets** para guardar ejemplos y **Exportar** para generar PNG, PDF vectorial o SVG, con vista previa navegable.
 
+Los grafos dirigidos y no dirigidos admiten pesos negativos. Dijkstra y A* se bloquean cuando hay alguno; Bellman-Ford y Floyd-Warshall permiten ejecutarlos y muestran **−∞** en los resultados afectados por ciclos negativos.
+
 **Personalizar** ofrece seis esquemas de color, acento propio, tamaño de texto y cuatro distribuciones de paneles. **Perfiles** guarda y comparte esa configuración; **Presentar / F11** abre el visor con teclado y marcas. Cada paso didáctico se exporta como una diapositiva horizontal **16:9 completa**, con grafo, tablas, explicación, ruta y leyenda. La composición adapta columnas y escala al contenido, también permite elegir proporción y añadir un foco; puedes elegir HD, QHD o 4K. La vista previa diagnostica el tamaño real de letra. Cada carpeta incluye el grafo y un manifiesto de los pasos originales.
 
 ## Documentación

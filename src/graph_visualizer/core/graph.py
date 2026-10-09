@@ -33,8 +33,15 @@ def validate_graph(graph: nx.Graph) -> None:
             or not math.isfinite(weight)
         ):
             raise ValueError("Cada peso debe ser un número finito.")
-        if not graph.is_directed() and weight < 0:
-            raise ValueError("Un grafo no dirigido no admite pesos negativos.")
+
+
+def algorithm_weight_error(graph: nx.Graph, algorithm: str) -> str | None:
+    """Return a weight restriction for an algorithm on an already validated graph."""
+    if algorithm in {"Dijkstra", "A*"} and any(
+        data["weight"] < 0 for _, _, _, data in edges_with_keys(graph)
+    ):
+        return f"{algorithm} no admite pesos negativos; usa Bellman-Ford o Floyd-Warshall."
+    return None
 
 
 def edge_id(source: str, target: str, key: int, directed: bool = False) -> EdgeId:

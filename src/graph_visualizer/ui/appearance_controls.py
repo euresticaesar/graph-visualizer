@@ -64,6 +64,9 @@ def style_sheet(p, size):
         QPushButton#destructive {{ color: {p.error}; }}
         QPushButton:disabled, QToolButton:disabled, QComboBox:disabled,
         QLineEdit:disabled, QSpinBox:disabled {{ background: {p.inset}; color: {p.muted}; }}
+        QPushButton#primary:disabled, QPushButton#confirmExport:disabled {{
+            background: {p.inset}; color: {p.muted}; border-color: {p.border};
+        }}
         QToolButton#history {{ font-size: {size + 7}px; padding: 2px 8px; }}
         QCheckBox {{ spacing: 8px; background: transparent; }}
         QTableWidget {{

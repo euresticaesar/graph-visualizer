@@ -20,8 +20,10 @@ En el layout inferior, una ventana de menos de 820 px de alto activa el modo com
 | --- | --- | --- |
 | [A*](algoritmos/astar.md) | Una ruta guiada por una heurística admisible | Se rechazan en todo el grafo |
 | [Dijkstra](algoritmos/dijkstra.md) | Una ruta entre origen y destino | Se rechazan en todo el grafo |
-| [Bellman-Ford](algoritmos/bellman-ford.md) | Desde un origen a todos los nodos | Se admiten en grafos dirigidos |
-| [Floyd-Warshall](algoritmos/floyd-warshall.md) | Todos los pares de nodos | Se admiten en grafos dirigidos |
+| [Bellman-Ford](algoritmos/bellman-ford.md) | Desde un origen a todos los nodos | Se admiten en grafos dirigidos y no dirigidos |
+| [Floyd-Warshall](algoritmos/floyd-warshall.md) | Todos los pares de nodos | Se admiten en grafos dirigidos y no dirigidos |
+
+El grafo admite pesos negativos al editar, guardar y cargar. Al seleccionar **Dijkstra** o **A*** con algún peso negativo, **Iniciar** queda deshabilitado y una explicación visible recomienda los algoritmos compatibles. Al quitar el último peso negativo, el botón vuelve a estar disponible; también se actualiza al deshacer, rehacer o cargar un preset. En un grafo no dirigido, una conexión negativa genera un ciclo negativo al recorrerla de ida y vuelta: Bellman-Ford y Floyd-Warshall muestran **−∞** en los resultados afectados.
 
 **Marcar paso** guarda el evento original en **Explorar pasos → Marcas (n)**. La lista muestra las marcas en orden del recorrido; elige una para saltar a ese paso y detener la reproducción. La ayuda de cada entrada incluye evento, iteración y explicación. Si una comparación marcada está oculta por el modo resumen, aparece como **Evento … (detalle)** y elegirla activa **Por comparación** para mostrar el evento exacto, sin recalcular. El selector funciona con teclado y se actualiza también con las marcas del visor de presentación. **Quitar marca** retira el paso visible; **Volver a editar** o iniciar otro algoritmo limpia las marcas de esa ejecución. Para exportarlas, selecciona **Pasos marcados** en Exportar.
 

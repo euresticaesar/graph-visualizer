@@ -4,6 +4,8 @@
 
 Calcula **todos los pares**, con independencia de los selectores de origen/destino. Estos solo consultan y resaltan una ruta del estado actual.
 
+Admite pesos negativos en grafos dirigidos y no dirigidos. En un grafo no dirigido, una conexión negativa genera un ciclo negativo al recorrerla en ambos sentidos; los pares que pueden atravesarlo quedan a **−∞**.
+
 Inicialmente se muestra una **iteración completa de k** por paso. Activa **Por comparación** para ver todos los triples `(i,j,k)`, incluidos los que no mejoran o contienen ∞. Cada comparación y su actualización constituyen un único paso: distancia anterior, `D[i,k]`, `D[k,j]`, suma candidata, mejora/sin cambio y resultado.
 
 Las dos matrices aparecen simultáneamente:

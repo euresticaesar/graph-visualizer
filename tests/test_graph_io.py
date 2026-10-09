@@ -30,7 +30,7 @@ def test_invalid_nodes(tmp_path, nodes):
 
 @pytest.mark.parametrize(
     "edge",
-    ["1,4,2", "1,2,-2", "1,2,nan", "1,2,inf", "1,2,a", "1,1,2", "1,2", "1,2,3,4"],
+    ["1,4,2", "1,2,nan", "1,2,inf", "1,2,a", "1,1,2", "1,2", "1,2,3,4"],
 )
 def test_invalid_edges(tmp_path, edge):
     with pytest.raises(ValueError):
