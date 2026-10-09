@@ -54,7 +54,7 @@ La composición adaptativa de A* con 30 nodos se compara con un reparto lateral 
 
 Las marcas se prueban en los cuatro algoritmos, incluidas comparaciones tardías ocultas en resumen, acceso por teclado y sincronización con el visor. El portapapeles se comprueba con su imagen real en los seis temas y con acento personalizado. Las explicaciones de diapositivas se verifican por operandos, negritas, contraste mínimo 4.5:1, texto literal y tamaño real de fuente; se comprueba el PDF seleccionable y el resaltado exacto de arcos paralelos con IDs visibles u ocultos.
 
-Los controles de Exportar se prueban con paneles de 310–520 px, fuente de 13 y 18 px, temas claro/oscuro y controles a izquierda/derecha o tablas inferiores. Las opciones avanzadas y los rangos deben caber sin desplazamiento horizontal ni recorte de controles y mantener accesible el destino mediante desplazamiento vertical. Las ayudas nativas de todas las casillas se comprueban desde el arranque; los filtros preservan los eventos de Paso actual y Resultado final.
+Los controles de Exportar se prueban con paneles de 310–520 px, fuente de 13 y 18 px, temas claro/oscuro y controles a izquierda/derecha o tablas inferiores. Estas combinaciones se ejecutan con la fuente del sistema y con **DejaVu Sans** explícita para cubrir las métricas de CI también en equipos que usan Noto Sans. Las opciones avanzadas y los rangos deben caber sin desplazamiento horizontal ni recorte de controles y mantener accesible el destino mediante desplazamiento vertical. Las ayudas nativas de todas las casillas se comprueban desde el arranque; los filtros preservan los eventos de Paso actual y Resultado final.
 
 ## Referencias visuales y CI
 

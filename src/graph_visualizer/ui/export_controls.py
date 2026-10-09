@@ -339,7 +339,7 @@ class ExportControls:
             form.addRow(name, widget)
         options.content.addLayout(form)
         advanced_button = self.export_advanced_button = QToolButton()
-        advanced_button.setText("Composición y texto")
+        advanced_button.setText("Diseño y texto")
         advanced_button.setToolTip("Muestra ajustes de distribución, tipografía y contenido.")
         advanced_button.setCheckable(True)
         options.content.addWidget(advanced_button)
@@ -425,7 +425,7 @@ class ExportControls:
         self.export_summary.setObjectName("hint")
         self.export_summary.setWordWrap(True)
         images.content.addWidget(self.export_summary)
-        self.preview_before_export = QCheckBox("Vista previa al exportar")
+        self.preview_before_export = QCheckBox("Vista previa")
         self.preview_before_export.setToolTip(
             "Permite revisar las diapositivas y confirmar o cancelar antes de crear archivos."
         )

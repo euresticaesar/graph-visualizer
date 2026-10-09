@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- Corrección del desbordamiento horizontal de Exportar con DejaVu Sans a 18 px que fallaba en CI: etiquetas Diseño y texto / Vista previa y regresiones ejecutadas con la fuente del sistema y la de CI, conservando las comprobaciones de geometría.
 - Composición adaptativa basada en la ocupación real de tablas: recupera el espacio sobrante para ampliar el grafo y respeta la prioridad de Grafo/Tablas destacadas. Las matrices inferiores aprovechan el ancho completo sin deformar letras ni cambiar las proporciones manuales; nuevas muestras y regresiones de A* y Floyd 30×30.
 - Exportar reúne Detalle y Filtro en Seleccionar pasos, muestra Desde/Hasta solo para rangos y ajusta formularios y acciones al ancho del panel sin desplazamiento horizontal.
 - Ayudas breves en todas las casillas, incluidas explicación, leyenda, atenuación, foco y vista previa; etiquetas más cortas para las opciones avanzadas.

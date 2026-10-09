@@ -1,10 +1,19 @@
+from contextlib import nullcontext
+
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt
-from PySide6.QtGui import QHelpEvent
+from PySide6.QtGui import QFontInfo, QHelpEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractButton, QCheckBox, QScrollArea, QToolTip
+from render_reference import reference_font
 
 from graph_visualizer.core.models import StateView
+
+
+@pytest.fixture(params=["system", "DejaVu Sans"])
+def sidebar_font(qapp, request):
+    with reference_font() if request.param == "DejaVu Sans" else nullcontext():
+        yield request.param
 
 
 @pytest.mark.parametrize("algorithm", ["Dijkstra", "A*", "Bellman-Ford", "Floyd-Warshall"])
@@ -43,10 +52,12 @@ def test_export_detail_and_filter_share_a_section_and_preserve_exact_events(wind
 @pytest.mark.parametrize("theme", ["light", "dark"])
 @pytest.mark.parametrize("layout", ["classic", "right", "bottom"])
 def test_export_page_reflows_without_horizontal_scroll_or_clipped_controls(
-    window, font_size, theme, layout
+    sidebar_font, window, font_size, theme, layout
 ):
     window.preferences.update(ui_font_size=font_size, theme=theme, ui_layout=layout)
     window.apply_appearance()
+    if sidebar_font == "DejaVu Sans":
+        assert QFontInfo(window.export_advanced_button.font()).family() == sidebar_font
     window.tabs.setCurrentIndex(3)
     scroll = window.tabs.widget(3).findChild(QScrollArea, "controlScroll")
     page = scroll.widget()
