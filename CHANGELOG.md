@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- Flechas dirigidas visibles al eliminar una conexión de sentido opuesto: la punta se coloca fuera de las etiquetas del nodo, también en aristas rectas y con texto ampliado.
 - Clic derecho en una conexión o su peso para eliminarla inmediatamente, con autoguardado y deshacer/rehacer mediante botones o teclado. Conserva la identidad de conexiones paralelas y arcos de sentidos opuestos; el gesto se bloquea durante el recorrido.
 - Pesos negativos en grafos no dirigidos al editar, guardar, cargar presets y convertir el tipo. Dijkstra y A* comparten su validación con la interfaz: Iniciar se deshabilita con una explicación visible; Bellman-Ford y Floyd-Warshall detectan los ciclos negativos y conservan los resultados no afectados.
 - Corrección del desbordamiento horizontal de Exportar con DejaVu Sans a 18 px que fallaba en CI: etiquetas Diseño y texto / Vista previa y regresiones ejecutadas con la fuente del sistema y la de CI, conservando las comprobaciones de geometría.

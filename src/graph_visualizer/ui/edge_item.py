@@ -76,21 +76,46 @@ class EdgeItem(QGraphicsPathItem):
     def paint(self, painter, option, widget=None):
         super().paint(painter, option, widget)
         if self.directed:
-            path = self.path()
-            t = 0.98
-            while t > 0.1 and self.target.shape().contains(
-                path.pointAtPercent(t) - self.target.pos()
-            ):
-                t -= 0.01
+            painter.setBrush(self.pen().color())
+            painter.drawPolygon(self._arrow_head())
+
+    def _arrow_head(self) -> QPolygonF:
+        path = self.path()
+        node_shapes = [node.mapToItem(self, node.shape()) for node in (self.source, self.target)]
+        padding = self.pen().widthF() / 2 + 1
+        label_rects = [
+            label.mapRectToItem(self, label.boundingRect()).adjusted(
+                -padding, -padding, padding, padding
+            )
+            for label in (
+                self.source.label,
+                self.source.caption,
+                self.target.label,
+                self.target.caption,
+                self.label,
+            )
+            if label.isVisible()
+        ]
+        fallback = QPolygonF()
+        for step in range(98, 9, -1):
+            t = step / 100
             tip = path.pointAtPercent(t)
             delta = tip - path.pointAtPercent(max(0, t - 0.02))
             length = math.hypot(delta.x(), delta.y()) or 1
             unit = delta / length
             normal = QPointF(-unit.y(), unit.x())
-            painter.setBrush(self.pen().color())
-            painter.drawPolygon(
-                QPolygonF([tip, tip - unit * 15 + normal * 7, tip - unit * 15 - normal * 7])
-            )
+            arrow = QPolygonF([tip, tip - unit * 15 + normal * 7, tip - unit * 15 - normal * 7])
+            outline = QPainterPath()
+            outline.addPolygon(arrow)
+            outline.closeSubpath()
+            # Nodes and labels are painted above the edge and can hide the whole arrow.
+            if any(outline.intersects(shape) for shape in node_shapes):
+                continue
+            if fallback.isEmpty():
+                fallback = arrow
+            if not any(outline.intersects(rect) for rect in label_rects):
+                return arrow
+        return fallback
 
     def shape(self):
         stroker = QPainterPathStroker()
