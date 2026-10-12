@@ -20,6 +20,7 @@ class GraphView(QGraphicsView):
     node_selected = Signal(object)
     node_creation_requested = Signal(object)
     edge_edit_requested = Signal(object, object, object)
+    edge_delete_requested = Signal(object, object, object)
     connection_requested = Signal(object, object)
     navigation_requested = Signal(int)
     playback_requested = Signal()
@@ -250,6 +251,16 @@ class GraphView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event) -> None:
+        if self.editable and event.button() == Qt.MouseButton.RightButton:
+            item = self._graph_item_at(event.position().toPoint())
+            if isinstance(item, EdgeItem):
+                selected = edge_id(
+                    item.source.node_id, item.target.node_id, item.key, self.graph.is_directed()
+                )
+                self.cancel_gesture()
+                event.accept()
+                self.edge_delete_requested.emit(*selected)
+                return
         if self.editable and event.button() == Qt.MouseButton.LeftButton:
             point = event.position().toPoint()
             item = self._graph_item_at(point)

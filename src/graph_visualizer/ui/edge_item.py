@@ -41,7 +41,8 @@ class EdgeItem(QGraphicsPathItem):
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setToolTip(
             f"Conexión #{key} · {source.node_id} {'→' if directed else '↔'} {target.node_id}"
-            f" · Peso {format_distance(weight)}\nHaz clic para cambiar el peso"
+            f" · Peso {format_distance(weight)}\nClic izquierdo: cambiar el peso"
+            "\nClic derecho: eliminar · Ctrl+Z: deshacer"
         )
         self.label = WeightLabel("", self)
         label_font = QFont("Sans Serif", 11, QFont.Weight.DemiBold)

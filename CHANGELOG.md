@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- Clic derecho en una conexión o su peso para eliminarla inmediatamente, con autoguardado y deshacer/rehacer mediante botones o teclado. Conserva la identidad de conexiones paralelas y arcos de sentidos opuestos; el gesto se bloquea durante el recorrido.
 - Pesos negativos en grafos no dirigidos al editar, guardar, cargar presets y convertir el tipo. Dijkstra y A* comparten su validación con la interfaz: Iniciar se deshabilita con una explicación visible; Bellman-Ford y Floyd-Warshall detectan los ciclos negativos y conservan los resultados no afectados.
 - Corrección del desbordamiento horizontal de Exportar con DejaVu Sans a 18 px que fallaba en CI: etiquetas Diseño y texto / Vista previa y regresiones ejecutadas con la fuente del sistema y la de CI, conservando las comprobaciones de geometría.
 - Composición adaptativa basada en la ocupación real de tablas: recupera el espacio sobrante para ampliar el grafo y respeta la prioridad de Grafo/Tablas destacadas. Las matrices inferiores aprovechan el ancho completo sin deformar letras ni cambiar las proporciones manuales; nuevas muestras y regresiones de A* y Floyd 30×30.

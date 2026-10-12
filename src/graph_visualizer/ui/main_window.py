@@ -200,6 +200,7 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         self.graph_view.node_selected.connect(self.editor.select_node)
         self.graph_view.node_creation_requested.connect(self._create_node_at)
         self.graph_view.edge_edit_requested.connect(self._edit_edge_at)
+        self.graph_view.edge_delete_requested.connect(self.delete_edge)
         self.graph_view.connection_requested.connect(self._connect_nodes)
         self.tabs.addTab(self._scroll_page(self.build_presets()), "Presets")
         self.tabs.addTab(
@@ -1407,7 +1408,8 @@ class MainWindow(AppearanceControls, PresetControls, ExportControls, QMainWindow
         )
         self.view_hint.setText(
             "Doble clic en el fondo: agregar nodo · Arrastra el centro: mover nodo"
-            " · Borde a nodo: conectar\nClic en una arista o su peso: editar"
+            " · Borde a nodo: conectar\nClic izquierdo en una arista o su peso: editar"
+            " · Clic derecho: eliminar conexión · Ctrl+Z: deshacer"
             " · Arrastra el fondo: mover vista · Rueda: acercar"
         )
         self.graph_info.setText(

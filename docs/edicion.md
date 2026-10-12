@@ -14,7 +14,7 @@ Con cualquier peso negativo, **Iniciar Dijkstra / A*** queda deshabilitado y mue
 
 ## Gestos en el lienzo
 
-Doble clic en el fondo agrega un nodo; arrastrar su centro lo mueve; arrastrar el borde hasta otro nodo crea una conexión; clic en una conexión o su peso permite editarla. La rueda cambia el zoom, arrastrar el fondo desplaza la vista y **Ajustar vista** / `Ctrl+0` encuadra el grafo.
+Doble clic en el fondo agrega un nodo; arrastrar su centro lo mueve; arrastrar el borde hasta otro nodo crea una conexión. Clic izquierdo en una conexión o su peso permite editarla; **clic derecho la elimina inmediatamente**, sin confirmación. Solo se elimina la conexión pulsada, incluso entre paralelas o arcos de sentidos opuestos. Puedes deshacer con `Ctrl+Z` y rehacer con `Ctrl+Y` o `Ctrl+Shift+Z`. La rueda cambia el zoom, arrastrar el fondo desplaza la vista y **Ajustar vista** / `Ctrl+0` encuadra el grafo.
 
 ## Etiquetas y ayuda
 
