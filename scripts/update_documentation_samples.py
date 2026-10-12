@@ -126,7 +126,7 @@ def main():
             window.target_combo.setCurrentIndex(window.target_combo.findData("666"))
             window.initialize()
             window.show_state(len(window.states) - 1)
-            save_capture(window, output / "demo_screenshot.png")
+            save_capture(window, images / "dijkstra-30-recorrido.png")
             window.reset()
             window.algorithm_combo.setCurrentText("Bellman-Ford")
             window.initialize()

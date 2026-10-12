@@ -18,7 +18,7 @@ Se versionan los archivos necesarios para ejecutar, validar y documentar la apli
 | `tests/` y `tests/fixtures/` | Pruebas, datos de entrada y referencias visuales revisadas |
 | `.github/workflows/ci.yml`, `pyproject.toml`, `uv.lock` y `.python-version` | CI, configuración y dependencias reproducibles |
 | `scripts/` | Regeneración reproducible de referencias y muestras |
-| `README.md`, `CHANGELOG.md`, `docs/` y `demo_screenshot.png` | Documentación y evidencias visuales; los PNG/PDF son deliberados |
+| `README.md`, `CHANGELOG.md` y `docs/` | Documentación y evidencias visuales en `docs/images/`; los PNG/PDF son deliberados |
 | `data/example/` | CSV y layout del ejemplo de arranque de 12 nodos usado en el checkout |
 | `.gitignore` | Exclusión de archivos locales y generados |
 
@@ -84,4 +84,4 @@ uv run python scripts/update_documentation_samples.py
 
 El script usa directorios temporales y el preset de 30 nodos. Regenera tres diapositivas PNG 4K (Floyd adaptativo, Floyd con matrices inferiores y Bellman-Ford), el PDF horizontal de una página, A* inicial de 30 nodos en HD, la captura de Dijkstra del README y las capturas de vista previa y layout inferior compacto. Incluye una comparación del preset de Bellman-Ford de cinco vértices para ilustrar el énfasis de la explicación. Comprueba los 30 nodos, 63 conexiones, 126 arcos y ruta `1 → 10 → 27 → 666`, costo 10, y muestra tamaños efectivos de fuente. Las muestras de documentación utilizan la fuente del sistema y se revisan visualmente; no son referencias de píxeles entre entornos. No modifican el trabajo del usuario.
 
-Para revisar candidatos antes de sustituir las muestras versionadas, usa `uv run python scripts/update_documentation_samples.py --output-dir /tmp/gv-muestras`. Mantiene los archivos existentes del repositorio y escribe las imágenes bajo `docs/images/` y la captura de escritorio en ese destino.
+Para revisar candidatos antes de sustituir las muestras versionadas, usa `uv run python scripts/update_documentation_samples.py --output-dir /tmp/gv-muestras`. Mantiene los archivos existentes del repositorio y escribe todas las muestras bajo `docs/images/` en ese destino, incluida la captura de Dijkstra que usa el README.

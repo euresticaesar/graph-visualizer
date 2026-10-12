@@ -2,7 +2,7 @@
 
 Aplicación de escritorio en español para crear y editar grafos y explorar paso a paso **Dijkstra, A*, Bellman-Ford y Floyd-Warshall**. Desarrollada con Python, PySide6 y NetworkX.
 
-![Resultado de Dijkstra en un grafo de 30 nodos, con la ruta mínima resaltada](demo_screenshot.png)
+![Resultado de Dijkstra en un grafo de 30 nodos, con la ruta mínima resaltada](docs/images/dijkstra-30-recorrido.png)
 
 ## Empezar
 
